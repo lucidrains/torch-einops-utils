@@ -2,16 +2,34 @@ import torch
 
 from torch_einops_utils.torch_einops_utils import (
     exists,
+    pad_ndim,
+    align_dims_left,
     pad_at_dim,
     pad_left_at_dim,
     pad_right_at_dim,
-    pack_with_inverse,
     pad_sequence,
-    lens_to_mask
+    lens_to_mask,
+    tree_flatten_with_inverse,
+    pack_with_inverse,
 )
 
 def test_exist():
     assert not exists(None)
+
+def test_pad_ndim():
+    t = torch.randn(3)
+    t = pad_ndim(t, (1, 2))
+    assert t.shape == (1, 3, 1, 1)
+
+def test_align_ndim_left():
+    t = torch.randn(3)
+    u = torch.randn(3, 5, 2)
+    v = torch.randn(3, 5)
+
+    t, u, v = align_dims_left((t, u, v))
+    assert t.shape == (3, 1, 1)
+    assert u.shape == (3, 5, 2)
+    assert v.shape == (3, 5, 1)
 
 def test_pad_at_dim():
     t = torch.randn(3, 6, 1)
@@ -20,6 +38,13 @@ def test_pad_at_dim():
     assert padded.shape == (3, 7, 1)
     assert torch.allclose(padded, pad_right_at_dim(t, 1, dim = 1))
     assert not torch.allclose(padded, pad_left_at_dim(t, 1, dim = 1))
+
+def test_tree_flatten_with_inverse():
+    tree = (1, (2, 3), 4)
+    (first, *rest), inverse = tree_flatten_with_inverse(tree)
+
+    out = inverse((first + 1, *rest))
+    assert out == (2, (2, 3), 4)
 
 def test_pack_with_inverse():
     t = torch.randn(3, 12, 2, 2)
@@ -32,9 +57,11 @@ def test_pack_with_inverse():
     u = torch.randn(3, 4, 2)
     t, inverse = pack_with_inverse([t, u], 'b * d')
     assert t.shape == (3, 28, 2)
-    t, u = inverse(t)
-    assert t.shape == (3, 12, 2, 2)
-    assert u.shape == (3, 4, 2)
+
+    t = t.sum(dim = -1)
+    t, u = inverse(t, 'b *')
+    assert t.shape == (3, 12, 2)
+    assert u.shape == (3, 4)
 
 def test_better_pad_sequence():
 

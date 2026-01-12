@@ -5,6 +5,8 @@ import torch
 from torch import tensor, is_tensor, cat, stack, arange
 import torch.nn.functional as F
 
+from torch.utils._pytree import tree_flatten, tree_unflatten
+
 from einops import rearrange, repeat, reduce, pack, unpack
 
 # helper functions
@@ -19,6 +21,33 @@ def first(arr):
     return arr[0]
 
 # exported functions
+
+# dimensions
+
+def pad_ndim(t, ndims: tuple[int, int]):
+    shape = t.shape
+    left, right = ndims
+
+    ones = (1,)
+    ones_left = ones * left
+    ones_right = ones * right
+    return t.reshape(*ones_left, *shape, *ones_right)
+
+def pad_left_ndim(t, ndims: int):
+    return pad_ndim(t, (ndims, 0))
+
+def pad_right_ndim(t, ndims: int):
+    return pad_ndim(t, (0, ndims))
+
+def align_dims_left(
+    tensors,
+    *,
+    ndim = None
+):
+    if not exists(ndim):
+        ndim = max([t.ndim for t in tensors])
+
+    return tuple(pad_right_ndim(t, ndim - t.ndim) for t in tensors)
 
 # masking
 
@@ -79,6 +108,16 @@ def pad_sequence(
         return stacked
 
     return stacked, lens
+
+# tree flatten with inverse
+
+def tree_flatten_with_inverse(tree):
+    flattened, spec = tree_flatten(tree)
+
+    def inverse(out):
+        return tree_unflatten(out, spec)
+
+    return flattened, inverse
 
 # einops pack
 
