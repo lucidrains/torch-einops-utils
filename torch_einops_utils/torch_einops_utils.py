@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal
+from functools import wraps
 
 import torch
 from torch import tensor, is_tensor, cat, stack, arange
@@ -17,8 +17,25 @@ def exists(v):
 def default(v, d):
     return v if exists(v) else d
 
+def identity(t, *args, **kwargs):
+    return t
+
 def first(arr):
     return arr[0]
+
+def maybe(fn):
+
+    if not exists(fn):
+        return identity
+
+    @wraps(fn)
+    def inner(t, *args, **kwargs):
+        if not exists(t):
+            return None
+
+        return fn(t, *args, **kwargs)
+
+    return inner
 
 # exported functions
 
