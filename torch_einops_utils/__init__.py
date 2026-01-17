@@ -1,11 +1,17 @@
 from torch_einops_utils.torch_einops_utils import (
-    maybe
+    maybe,
+    masked_mean,
+    slice_at_dim,
+    slice_left_at_dim,
+    slice_right_at_dim
 )
 
 from torch_einops_utils.torch_einops_utils import (
     pad_ndim,
     pad_left_ndim,
     pad_right_ndim,
+    pad_right_ndim_to,
+    pad_left_ndim_to,
     align_dims_left,
 )
 
@@ -17,9 +23,15 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
+    slice_at_dim
+)
+
+from torch_einops_utils.torch_einops_utils import (
     pad_at_dim,
     pad_left_at_dim,
     pad_right_at_dim,
+    pad_left_at_dim_to,
+    pad_right_at_dim_to,
     pad_sequence
 )
 
