@@ -61,6 +61,27 @@ def lens_to_mask(lens, max_len = None):
     lens = rearrange(lens, '... -> ... 1')
     return seq < lens
 
+def reduce_masks(masks, op):
+    masks = [*filter(exists, masks)]
+
+    if len(masks) == 0:
+        return None
+    elif len(masks) == 1:
+        return first(masks)
+
+    mask, *rest_masks = masks
+
+    for rest_mask in rest_masks:
+        mask = op(mask, rest_mask)
+
+    return mask
+
+def and_masks(masks):
+    return reduce_masks(masks, torch.logical_and)
+
+def or_masks(masks):
+    return reduce_masks(masks, torch.logical_or)
+
 # padding
 
 def pad_at_dim(

@@ -1,4 +1,5 @@
 import torch
+from torch import tensor
 
 from torch_einops_utils.torch_einops_utils import (
     exists,
@@ -9,6 +10,8 @@ from torch_einops_utils.torch_einops_utils import (
     pad_right_at_dim,
     pad_sequence,
     lens_to_mask,
+    and_masks,
+    or_masks,
     tree_flatten_with_inverse,
     pack_with_inverse,
 )
@@ -75,3 +78,17 @@ def test_better_pad_sequence():
 
     mask = lens_to_mask(lens)
     assert torch.allclose(mask.sum(dim = -1), lens)
+
+def test_and_masks():
+    assert not exists(and_masks([None]))
+
+    mask1 = tensor([True, True])
+    mask2 = tensor([True, False])
+    assert (and_masks([mask1, None, mask2]) == tensor([True, False])).all()
+
+def test_or_masks():
+    assert not exists(or_masks([None]))
+
+    mask1 = tensor([True, True])
+    mask2 = tensor([True, False])
+    assert (or_masks([mask1, None, mask2]) == tensor([True, True])).all()
