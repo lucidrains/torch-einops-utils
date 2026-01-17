@@ -3,6 +3,7 @@ from torch import tensor
 
 from torch_einops_utils.torch_einops_utils import (
     exists,
+    maybe,
     pad_ndim,
     align_dims_left,
     pad_at_dim,
@@ -18,6 +19,10 @@ from torch_einops_utils.torch_einops_utils import (
 
 def test_exist():
     assert not exists(None)
+
+def test_maybe():
+    assert maybe(None)(1) == 1
+    assert not exists(maybe(lambda t: t + 1)(None))
 
 def test_pad_ndim():
     t = torch.randn(3)

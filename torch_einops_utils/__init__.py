@@ -1,3 +1,6 @@
+from torch_einops_utils.torch_einops_utils import (
+    maybe
+)
 
 from torch_einops_utils.torch_einops_utils import (
     pad_ndim,
@@ -7,7 +10,10 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
-    lens_to_mask
+    lens_to_mask,
+    reduce_masks,
+    and_masks,
+    or_masks,
 )
 
 from torch_einops_utils.torch_einops_utils import (
