@@ -20,6 +20,7 @@ from torch_einops_utils.torch_einops_utils import (
     and_masks,
     or_masks,
     tree_flatten_with_inverse,
+    tree_map_tensor,
     pack_with_inverse,
     masked_mean,
     slice_at_dim,
@@ -85,6 +86,13 @@ def test_tree_flatten_with_inverse():
 
     out = inverse((first + 1, *rest))
     assert out == (2, (2, 3), 4)
+
+def test_tree_map_tensor():
+    tree = (1, tensor(2), 3)
+    tree = tree_map_tensor(lambda t: t + 1, tree)
+    assert tree[0] == 1
+    assert tree[-1] == 3
+    assert (tree[1] == 3).all()
 
 def test_pack_with_inverse():
     t = torch.randn(3, 12, 2, 2)

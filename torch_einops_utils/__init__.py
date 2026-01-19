@@ -36,7 +36,8 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
-    tree_flatten_with_inverse
+    tree_flatten_with_inverse,
+    tree_map_tensor
 )
 
 from torch_einops_utils.torch_einops_utils import (

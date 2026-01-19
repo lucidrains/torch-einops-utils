@@ -5,7 +5,7 @@ import torch
 from torch import tensor, is_tensor, cat, stack, arange
 import torch.nn.functional as F
 
-from torch.utils._pytree import tree_flatten, tree_unflatten
+from torch.utils._pytree import tree_flatten, tree_unflatten, tree_map
 
 from einops import rearrange, repeat, reduce, pack, unpack
 
@@ -214,6 +214,9 @@ def pad_sequence(
     return stacked, lens
 
 # tree flatten with inverse
+
+def tree_map_tensor(fn, tree):
+    return tree_map(lambda t: fn(t) if is_tensor(t) else t, tree)
 
 def tree_flatten_with_inverse(tree):
     flattened, spec = tree_flatten(tree)
