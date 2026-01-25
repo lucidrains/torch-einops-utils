@@ -4,6 +4,7 @@ from torch import tensor
 from torch_einops_utils.torch_einops_utils import (
     exists,
     maybe,
+    shape_with_replace,
     pad_ndim,
     pad_left_ndim,
     pad_right_ndim,
@@ -194,3 +195,7 @@ def test_slice_at_dim():
     res = slice_right_at_dim(t, 2, dim = 1)
     assert res.shape == (3, 2, 5)
     assert torch.allclose(res, t[:, -2:, :])
+
+def test_shape_with_replace():
+    t = torch.randn(3, 4, 5)
+    assert shape_with_replace(t, {1: 2}) == (3, 2, 5)

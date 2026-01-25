@@ -61,6 +61,25 @@ def masked_mean(
 
     return num / den.clamp(min = eps)
 
+# shapes
+
+def shape_with_replace(
+    t,
+    replace_dict: dict[int, int] | None = None
+):
+    shape = t.shape
+
+    if not exists(replace_dict):
+        return shape
+
+    shape_list = list(shape)
+
+    for index, value in replace_dict.items():
+        assert index < len(shape_list)
+        shape_list[index] = value
+
+    return torch.Size(shape_list)
+
 # slicing
 
 def slice_at_dim(t, slc, dim = -1):
