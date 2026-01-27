@@ -23,6 +23,9 @@ def identity(t, *args, **kwargs):
 def first(arr):
     return arr[0]
 
+def compact(arr):
+    return [*filter(exists, arr)]
+
 def maybe(fn):
 
     if not exists(fn):
@@ -40,7 +43,7 @@ def maybe(fn):
 def safe(fn):
     @wraps(fn)
     def inner(tensors, *args, **kwargs):
-        tensors = [*filter(exists, tensors)]
+        tensors = compact(tensors)
 
         if len(tensors) == 0:
             return None
@@ -160,8 +163,12 @@ def align_dims_left(
 
 # cat and stack
 
-@safe
 def safe_stack(tensors, dim = 0):
+    tensors = compact(tensors)
+
+    if len(tensors) == 0:
+        return None
+
     return stack(tensors, dim = dim)
 
 @safe

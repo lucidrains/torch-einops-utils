@@ -210,6 +210,7 @@ def test_safe_functions():
     assert safe_stack([None]) is None
     assert (safe_stack([t1]) == t1).all()
     assert (safe_stack([t1, None]) == t1).all()
+    assert safe_stack([t1]).shape == (1, 2, 3)
     assert safe_stack([t1, t2]).shape == (2, 2, 3)
 
     assert safe_cat([]) is None
