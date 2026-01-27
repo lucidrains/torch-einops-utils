@@ -26,7 +26,9 @@ from torch_einops_utils.torch_einops_utils import (
     masked_mean,
     slice_at_dim,
     slice_left_at_dim,
-    slice_right_at_dim
+    slice_right_at_dim,
+    safe_stack,
+    safe_cat
 )
 
 def test_exist():
@@ -199,3 +201,19 @@ def test_slice_at_dim():
 def test_shape_with_replace():
     t = torch.randn(3, 4, 5)
     assert shape_with_replace(t, {1: 2}) == (3, 2, 5)
+
+def test_safe_functions():
+    t1 = torch.randn(2, 3)
+    t2 = torch.randn(2, 3)
+
+    assert safe_stack([]) is None
+    assert safe_stack([None]) is None
+    assert (safe_stack([t1]) == t1).all()
+    assert (safe_stack([t1, None]) == t1).all()
+    assert safe_stack([t1, t2]).shape == (2, 2, 3)
+
+    assert safe_cat([]) is None
+    assert safe_cat([None]) is None
+    assert (safe_cat([t1]) == t1).all()
+    assert (safe_cat([t1, None]) == t1).all()
+    assert safe_cat([t1, t2]).shape == (4, 3)

@@ -37,6 +37,21 @@ def maybe(fn):
 
     return inner
 
+def safe(fn):
+    @wraps(fn)
+    def inner(tensors, *args, **kwargs):
+        tensors = [*filter(exists, tensors)]
+
+        if len(tensors) == 0:
+            return None
+
+        if len(tensors) == 1:
+            return tensors[0]
+
+        return fn(tensors, *args, **kwargs)
+
+    return inner
+
 # exported functions
 
 def masked_mean(
@@ -143,6 +158,16 @@ def align_dims_left(
 
     return tuple(pad_right_ndim(t, ndim - t.ndim) for t in tensors)
 
+# cat and stack
+
+@safe
+def safe_stack(tensors, dim = 0):
+    return stack(tensors, dim = dim)
+
+@safe
+def safe_cat(tensors, dim = 0):
+    return cat(tensors, dim = dim)
+
 # masking
 
 def lens_to_mask(lens, max_len = None):
@@ -155,14 +180,8 @@ def lens_to_mask(lens, max_len = None):
     lens = rearrange(lens, '... -> ... 1')
     return seq < lens
 
+@safe
 def reduce_masks(masks, op):
-    masks = [*filter(exists, masks)]
-
-    if len(masks) == 0:
-        return None
-    elif len(masks) == 1:
-        return first(masks)
-
     mask, *rest_masks = masks
 
     for rest_mask in rest_masks:
