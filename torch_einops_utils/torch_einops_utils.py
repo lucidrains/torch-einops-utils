@@ -63,13 +63,13 @@ def masked_mean(
     if not exists(mask):
         return t.mean(dim = dim) if exists(dim) else t.mean()
 
-    if not exists(dim):
-        return t[mask].mean() if mask.any() else t[mask].sum()
-
     if mask.ndim < t.ndim:
         mask = pad_right_ndim(mask, t.ndim - mask.ndim)
 
     mask = mask.expand_as(t)
+
+    if not exists(dim):
+        return t[mask].mean() if mask.any() else t[mask].sum()
 
     num = (t * mask).sum(dim = dim)
     den = mask.sum(dim = dim)
