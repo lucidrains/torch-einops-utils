@@ -244,7 +244,8 @@ def pad_sequence(
     value = 0.,
     left = False,
     dim_stack = 0,
-    return_lens = False
+    return_lens = False,
+    pad_lens = False # returns padding length instead of sequence lengths
 ):
     if len(tensors) == 0:
         return None
@@ -261,6 +262,9 @@ def pad_sequence(
 
     if not return_lens:
         return stacked
+
+    if pad_lens:
+        lens = max_len - lens
 
     return stacked, lens
 
