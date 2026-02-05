@@ -36,3 +36,15 @@ def move_inputs_to_device(device):
         return inner
 
     return decorator
+
+def move_inputs_to_module_device(fn):
+
+    @wraps(fn)
+    def inner(self, *args, **kwargs):
+        device = module_device(self)
+
+        args, kwargs = tree_map_tensor(lambda t: t.to(device), (args, kwargs))
+
+        return fn(self, *args, **kwargs)
+
+    return inner
