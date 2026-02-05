@@ -244,6 +244,7 @@ def pad_sequence(
     value = 0.,
     left = False,
     dim_stack = 0,
+    return_stacked = True,
     return_lens = False,
     pad_lens = False # returns padding length instead of sequence lengths
 ):
@@ -258,15 +259,17 @@ def pad_sequence(
     pad_fn = pad_left_at_dim if left else pad_right_at_dim
     padded_tensors = [pad_fn(t, max_len - t_len, dim = dim, value = value) for t, t_len in zip(tensors, lens)]
 
-    stacked = stack(padded_tensors, dim = dim_stack)
+    output = padded_tensors
+    if return_stacked:
+        output = stack(output, dim = dim_stack)
 
     if not return_lens:
-        return stacked
+        return output
 
     if pad_lens:
         lens = max_len - lens
 
-    return stacked, lens
+    return output, lens
 
 # tree flatten with inverse
 

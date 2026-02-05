@@ -127,6 +127,20 @@ def test_better_pad_sequence():
     mask = lens_to_mask(lens)
     assert torch.allclose(mask.sum(dim = -1), lens)
 
+def test_pad_sequence_uneven_images():
+    images = [
+        torch.randn(3, 16, 17),
+        torch.randn(3, 15, 18),
+        torch.randn(3, 17, 16)
+    ]
+
+    padded_height = pad_sequence(images, dim = -2, return_stacked = False)
+    assert len(padded_height) == 3
+    assert all([t.shape[1] == 17 for t in padded_height])
+
+    stacked = pad_sequence(padded_height, dim = -1, return_stacked = True)
+    assert stacked.shape == (3, 3, 17, 18)
+
 def test_and_masks():
     assert not exists(and_masks([None]))
 
