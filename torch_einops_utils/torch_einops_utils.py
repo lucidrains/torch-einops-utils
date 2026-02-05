@@ -271,6 +271,17 @@ def pad_sequence(
 
     return output, lens
 
+def pad_sequence_and_cat(
+    tensors,
+    *,
+    dim_cat = 0,
+    **kwargs
+):
+    assert 'return_stacked' not in kwargs
+
+    padded = pad_sequence(tensors, return_stacked = False, **kwargs)
+    return cat(padded, dim = dim_cat)
+
 # tree flatten with inverse
 
 def tree_map_tensor(fn, tree):

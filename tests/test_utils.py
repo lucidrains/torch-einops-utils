@@ -17,6 +17,7 @@ from torch_einops_utils.torch_einops_utils import (
     pad_left_at_dim_to,
     pad_right_at_dim_to,
     pad_sequence,
+    pad_sequence_and_cat,
     lens_to_mask,
     and_masks,
     or_masks,
@@ -138,8 +139,8 @@ def test_pad_sequence_uneven_images():
     assert len(padded_height) == 3
     assert all([t.shape[1] == 17 for t in padded_height])
 
-    stacked = pad_sequence(padded_height, dim = -1, return_stacked = True)
-    assert stacked.shape == (3, 3, 17, 18)
+    stacked = pad_sequence_and_cat(padded_height, dim_cat = 0)
+    assert stacked.shape == (9, 17, 18)
 
 def test_and_masks():
     assert not exists(and_masks([None]))

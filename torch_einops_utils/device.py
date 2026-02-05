@@ -1,7 +1,10 @@
 from itertools import chain
+from functools import wraps
 
 import torch
 from torch.nn import Module
+
+from torch_einops_utils.torch_einops_utils import tree_map_tensor
 
 # helpers
 
@@ -18,3 +21,18 @@ def module_device(m: Module):
         return None
 
     return first_param_or_buffer.device
+
+# moving all inputs into a function onto a device
+
+def move_inputs_to_device(device):
+
+    def decorator(fn):
+        @wraps(fn)
+        def inner(*args, **kwargs):
+            args, kwargs = tree_map_tensor(lambda t: t.to(device), (args, kwargs))
+
+            return fn(*args, **kwargs)
+
+        return inner
+
+    return decorator
