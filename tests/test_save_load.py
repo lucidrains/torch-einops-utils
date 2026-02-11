@@ -58,3 +58,70 @@ def test_init_and_load():
     # Cleanup
     if path.exists():
         os.remove(path)
+
+# nested save load
+
+@save_load()
+class GrandChild(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+        self.param = nn.Parameter(torch.randn(dim))
+
+@save_load()
+class Child(nn.Module):
+    def __init__(self, grandchild = None, name = "child"):
+        super().__init__()
+        self.grandchild = grandchild
+        self.name = name
+        self.param = nn.Parameter(torch.randn(1))
+
+@save_load()
+class Parent(nn.Module):
+    def __init__(self, child1, child2 = None):
+        super().__init__()
+        self.child1 = child1
+        self.child2 = child2
+        self.param = nn.Parameter(torch.randn(1))
+
+@save_load()
+class GrandParent(nn.Module):
+    def __init__(self, p1, p2):
+        super().__init__()
+        self.p1 = p1
+        self.p2 = p2
+        self.param = nn.Parameter(torch.randn(1))
+
+def test_sophisticated_nested_save_load():
+    gc = GrandChild(dim = 8)
+    c1 = Child(name = "c1")
+    c2 = Child(name = "c2")
+    c_nest = Child(grandchild = gc, name = "c_nest")
+    
+    p1 = Parent(child1 = c1, child2 = c2)
+    p2 = Parent(child1 = c_nest)
+    
+    gp = GrandParent(p1 = p1, p2 = p2)
+    
+    path = Path('sophisticated_test.pt')
+    
+    # Save
+    gp.save(str(path))
+    
+    # Load
+    gp2 = GrandParent.init_and_load(str(path))
+    
+    # Verify structure
+    assert gp2.p1.child1.name == "c1"
+    assert gp2.p1.child2.name == "c2"
+    assert gp2.p2.child1.name == "c_nest"
+    assert gp2.p2.child1.grandchild.dim == 8
+    
+    # Verify weight parity
+    assert torch.allclose(gp.param, gp2.param)
+    assert torch.allclose(gp.p1.param, gp2.p1.param)
+    assert torch.allclose(gp.p1.child1.param, gp2.p1.child1.param)
+    assert torch.allclose(gp.p2.child1.grandchild.param, gp2.p2.child1.grandchild.param)
+ 
+    if path.exists():
+        os.remove(path)

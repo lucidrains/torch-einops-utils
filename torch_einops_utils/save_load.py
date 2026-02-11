@@ -13,6 +13,41 @@ from torch.nn import Module
 def exists(v):
     return v is not None
 
+def map_values(fn, v):
+    if isinstance(v, (list, tuple)):
+        return type(v)(map_values(fn, el) for el in v)
+
+    if isinstance(v, dict):
+        v = {key: map_values(fn, val) for key, val in v.items()}
+
+    return fn(v)
+
+def dehydrate_config(config, config_instance_var_name):
+    def dehydrate(v):
+        # if the value is a save_load decorated module, convert it to its reconstruction metadata
+        if isinstance(v, Module) and hasattr(v, config_instance_var_name):
+            return dict(
+                __save_load_module__ = True,
+                klass = v.__class__,
+                config = dehydrate_config(getattr(v, config_instance_var_name), config_instance_var_name)
+            )
+
+        return v
+
+    return map_values(dehydrate, config)
+
+def rehydrate_config(config):
+    def rehydrate(v):
+        # if the value is reconstruction metadata, instantiate the module using its class and configuration
+        if isinstance(v, dict) and v.get('__save_load_module__', False):
+            klass = v['klass']
+            args, kwargs = v['config']
+            return klass(*args, **kwargs)
+
+        return v
+
+    return map_values(rehydrate, config)
+
 def save_load(
     save_method_name = 'save',
     load_method_name = 'load',
@@ -37,7 +72,7 @@ def save_load(
             config = getattr(self, config_instance_var_name)
             pkg = dict(
                 model = self.state_dict(),
-                config = pickle.dumps(config),
+                config = pickle.dumps(dehydrate_config(config, config_instance_var_name)),
                 version = version,
             )
 
@@ -66,7 +101,7 @@ def save_load(
             assert 'config' in pkg, 'model configs were not found in this saved checkpoint'
 
             config = pickle.loads(pkg['config'])
-            args, kwargs = config
+            args, kwargs = rehydrate_config(config)
             model = cls(*args, **kwargs)
 
             _load(model, path, strict = strict)
