@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import torch
 from torch import Tensor
 
-from torch_einops_utils.helpers import (
+from torch_einops_utils._helpers import (
     compact,
     default,
     divisible_by,
@@ -33,9 +33,7 @@ def test_default_returns_fallback_only_when_none(
     expected: int | str,
 ) -> None:
     result = default(input_value, fallback_value)
-    assert result == expected, (
-        f"default returned {result}, expected {expected} for {input_value=} and {fallback_value=}."
-    )
+    assert result == expected, f"default returned {result}, expected {expected} for {input_value=} and {fallback_value=}."
 
 
 @pytest.mark.parametrize(
@@ -72,9 +70,7 @@ def test_divisible_by_validates_modulus(
     expected: bool,
 ) -> None:
     result = divisible_by(numerator, denominator)
-    assert result is expected, (
-        f"divisible_by returned {result}, expected {expected} for {numerator=} and {denominator=}."
-    )
+    assert result is expected, f"divisible_by returned {result}, expected {expected} for {numerator=} and {denominator=}."
 
 
 @pytest.mark.parametrize(
@@ -103,9 +99,7 @@ def test_first_returns_zero_index(
     expected_first: int | str,
 ) -> None:
     result = first(sequence_value)
-    assert result == expected_first, (
-        f"first returned {result}, expected {expected_first} for {sequence_value=}."
-    )
+    assert result == expected_first, f"first returned {result}, expected {expected_first} for {sequence_value=}."
 
 
 @pytest.mark.parametrize(
@@ -118,9 +112,7 @@ def test_compact_removes_none_from_mixed_sequence(
 ) -> None:
     result = compact(mixed_sequence_with_nones)
 
-    assert result == expected, (
-        f"compact returned {result}, expected {expected} for {mixed_sequence_with_nones=}."
-    )
+    assert result == expected, f"compact returned {result}, expected {expected} for {mixed_sequence_with_nones=}."
 
 
 @pytest.mark.parametrize(
@@ -173,22 +165,16 @@ def test_safe_decorator_unwraps_tensors(
     result = dummy_func(tensors_list)
 
     if expect_none:
-        assert result is None, (
-            f"safe-decorated function returned {result}, expected None for all-None input."
-        )
+        assert result is None, f"safe-decorated function returned {result}, expected None for all-None input."
     elif expect_identity:
         # Find the first non-None tensor in the input list
         original_tensor = next(t for t in tensors_list if t is not None)
         assert result is original_tensor, (
-            "safe-decorated function returned different tensor identity, "
-            "expected identical reference for single active tensor."
+            "safe-decorated function returned different tensor identity, expected identical reference for single active tensor."
         )
     else:
-        assert result is not None, (
-            "safe-decorated function returned None for multiple active tensors."
-        )
+        assert result is not None, "safe-decorated function returned None for multiple active tensors."
         assert expected_output is not None
         assert torch.equal(result, expected_output), (
-            f"safe-decorated function returned {result}, expected {expected_output} "
-            "for multiple active tensors."
+            f"safe-decorated function returned {result}, expected {expected_output} for multiple active tensors."
         )

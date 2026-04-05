@@ -20,6 +20,7 @@ class SimpleNet(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+
 def test_save_load():
     model = SimpleNet(10, 20)
     path = Path("test_model.pt")
@@ -43,6 +44,7 @@ def test_save_load():
     if path.exists():
         os.remove(path)
 
+
 def test_init_and_load():
     dim, hidden_dim = 16, 32
     model = SimpleNet(dim, hidden_dim)
@@ -63,7 +65,9 @@ def test_init_and_load():
     if path.exists():
         os.remove(path)
 
+
 # nested save load
+
 
 @save_load()
 class GrandChild(nn.Module):
@@ -72,21 +76,24 @@ class GrandChild(nn.Module):
         self.dim = dim
         self.param = nn.Parameter(torch.randn(dim))
 
+
 @save_load()
 class Child(nn.Module):
-    def __init__(self, grandchild = None, name = "child"):
+    def __init__(self, grandchild=None, name="child"):
         super().__init__()
         self.grandchild = grandchild
         self.name = name
         self.param = nn.Parameter(torch.randn(1))
 
+
 @save_load()
 class Parent(nn.Module):
-    def __init__(self, child1, child2 = None):
+    def __init__(self, child1, child2=None):
         super().__init__()
         self.child1 = child1
         self.child2 = child2
         self.param = nn.Parameter(torch.randn(1))
+
 
 @save_load()
 class GrandParent(nn.Module):
@@ -96,16 +103,17 @@ class GrandParent(nn.Module):
         self.p2 = p2
         self.param = nn.Parameter(torch.randn(1))
 
+
 def test_sophisticated_nested_save_load():
-    gc = GrandChild(dim = 8)
-    c1 = Child(name = "c1")
-    c2 = Child(name = "c2")
-    c_nest = Child(grandchild = gc, name = "c_nest")
+    gc = GrandChild(dim=8)
+    c1 = Child(name="c1")
+    c2 = Child(name="c2")
+    c_nest = Child(grandchild=gc, name="c_nest")
 
-    p1 = Parent(child1 = c1, child2 = c2)
-    p2 = Parent(child1 = c_nest)
+    p1 = Parent(child1=c1, child2=c2)
+    p2 = Parent(child1=c_nest)
 
-    gp = GrandParent(p1 = p1, p2 = p2)
+    gp = GrandParent(p1=p1, p2=p2)
 
     path = Path("sophisticated_test.pt")
 

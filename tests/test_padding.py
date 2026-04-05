@@ -85,8 +85,7 @@ def test_pad_at_dim(
         f"{tuple(expected_tensor.shape)} for {pad_tuple=}, {dimension=}, and {padding_value=}."
     )
     assert torch.equal(padded_tensor, expected_tensor), (
-        f"pad_at_dim returned {padded_tensor}, expected {expected_tensor} for "
-        f"{pad_tuple=}, {dimension=}, and {padding_value=}."
+        f"pad_at_dim returned {padded_tensor}, expected {expected_tensor} for {pad_tuple=}, {dimension=}, and {padding_value=}."
     )
 
 
@@ -119,8 +118,7 @@ def test_pad_side_wrappers_match_pad_at_dim(
     )
 
     assert torch.equal(wrapped_tensor, base_tensor), (
-        f"{padding_function.__name__} returned {wrapped_tensor}, expected {base_tensor} "
-        "when compared with pad_at_dim."
+        f"{padding_function.__name__} returned {wrapped_tensor}, expected {base_tensor} when compared with pad_at_dim."
     )
 
 
@@ -201,8 +199,7 @@ def test_pad_at_dim_to(
 
     if is_expanded:
         assert padded_tensor is not tensor_two_by_three_prime, (
-            f"{padding_function.__name__} returned original tensor identity for {target_length=}, "
-            "expected a new padded tensor."
+            f"{padding_function.__name__} returned original tensor identity for {target_length=}, expected a new padded tensor."
         )
     else:
         assert padded_tensor is tensor_two_by_three_prime, (
@@ -215,8 +212,7 @@ def test_pad_at_dim_to(
         f"{tuple(expected.shape)} for {target_length=} and dim={dimension}."
     )
     assert torch.equal(padded_tensor, expected), (
-        f"{padding_function.__name__} returned {padded_tensor}, expected {expected} "
-        f"for {target_length=} and {padding_value=}."
+        f"{padding_function.__name__} returned {padded_tensor}, expected {expected} for {target_length=} and {padding_value=}."
     )
 
 
@@ -360,15 +356,9 @@ def test_pad_sequence_types(
             None,
             id="list-with-lengths",
         ),
-        pytest.param(
-            False, 1, 0, True, False, False, 73.0, True, None, None, id="empty-stacked-no-lengths"
-        ),
-        pytest.param(
-            False, 1, 0, True, True, False, 73.0, True, None, None, id="empty-stacked-with-lengths"
-        ),
-        pytest.param(
-            False, 1, 0, False, False, False, 73.0, True, None, None, id="empty-list-no-lengths"
-        ),
+        pytest.param(False, 1, 0, True, False, False, 73.0, True, None, None, id="empty-stacked-no-lengths"),
+        pytest.param(False, 1, 0, True, True, False, 73.0, True, None, None, id="empty-stacked-with-lengths"),
+        pytest.param(False, 1, 0, False, False, False, 73.0, True, None, None, id="empty-list-no-lengths"),
         pytest.param(
             False,
             1,
@@ -411,57 +401,44 @@ def test_pad_sequence(
         pad_lens=pad_lens,
     )
     parameter_description: str = (
-        f"{left=}, {dimension=}, {dim_stack=}, {return_stacked=}, {return_lens=}, {pad_lens=}, "
-        f"{padding_value=}, and {use_empty_input=}"
+        f"{left=}, {dimension=}, {dim_stack=}, {return_stacked=}, {return_lens=}, {pad_lens=}, {padding_value=}, and {use_empty_input=}"
     )
 
     if use_empty_input:
-        assert output_value is None, (
-            f"pad_sequence returned {output_value}, expected None for empty tensors with "
-            f"{parameter_description}."
-        )
+        assert output_value is None, f"pad_sequence returned {output_value}, expected None for empty tensors with {parameter_description}."
         return
 
     assert output_value is not None, (
-        "pad_sequence returned None for non-empty tensors, expected padded output for "
-        f"{parameter_description}."
+        f"pad_sequence returned None for non-empty tensors, expected padded output for {parameter_description}."
     )
 
     payload: Tensor | list[Tensor]
     if return_lens:
         assert isinstance(output_value, tuple), (
-            f"pad_sequence returned type {type(output_value).__name__}, expected tuple for "
-            f"{parameter_description}."
+            f"pad_sequence returned type {type(output_value).__name__}, expected tuple for {parameter_description}."
         )
         payload, lengths = output_value
-        expected_lengths: Tensor = (
-            tensor_sequence_padding_lengths_prime if pad_lens else tensor_sequence_lengths_prime
-        )
+        expected_lengths: Tensor = tensor_sequence_padding_lengths_prime if pad_lens else tensor_sequence_lengths_prime
         assert torch.equal(lengths, expected_lengths), (
-            f"pad_sequence returned lengths {lengths}, expected {expected_lengths} for "
-            f"{parameter_description}."
+            f"pad_sequence returned lengths {lengths}, expected {expected_lengths} for {parameter_description}."
         )
     else:
         assert not isinstance(output_value, tuple), (
-            f"pad_sequence returned tuple output {output_value}, expected Tensor or list for "
-            f"{parameter_description}."
+            f"pad_sequence returned tuple output {output_value}, expected Tensor or list for {parameter_description}."
         )
         payload = output_value
 
     if return_stacked:
         assert isinstance(payload, Tensor), (
-            f"pad_sequence returned payload type {type(payload).__name__}, expected Tensor for "
-            f"{parameter_description}."
+            f"pad_sequence returned payload type {type(payload).__name__}, expected Tensor for {parameter_description}."
         )
         assert tuple(payload.shape) == expected_stacked_shape, (
-            f"pad_sequence returned stacked shape {tuple(payload.shape)}, expected "
-            f"{expected_stacked_shape} for {parameter_description}."
+            f"pad_sequence returned stacked shape {tuple(payload.shape)}, expected {expected_stacked_shape} for {parameter_description}."
         )
         padded_last_tensor: Tensor = payload.select(dim_stack, 2)
     else:
         assert isinstance(payload, list), (
-            f"pad_sequence returned payload type {type(payload).__name__}, expected list for "
-            f"{parameter_description}."
+            f"pad_sequence returned payload type {type(payload).__name__}, expected list for {parameter_description}."
         )
         assert len(payload) == len(tensor_sequence_with_variable_lengths), (
             f"pad_sequence returned list length {len(payload)}, expected "
@@ -474,8 +451,7 @@ def test_pad_sequence(
         padded_last_tensor = payload[2]
 
     assert torch.equal(padded_last_tensor, expected_last_tensor), (
-        f"pad_sequence returned last tensor {padded_last_tensor}, expected {expected_last_tensor} "
-        f"for {parameter_description}."
+        f"pad_sequence returned last tensor {padded_last_tensor}, expected {expected_last_tensor} for {parameter_description}."
     )
 
 
@@ -505,15 +481,10 @@ def test_pad_sequence_and_cat(
         left=left,
         dim_cat=dim_cat,
     )
-    parameter_description: str = (
-        f"{left=}, {dim_sequence=}, {dim_cat=}, {padding_value=}, and {use_empty_input=}"
-    )
+    parameter_description: str = f"{left=}, {dim_sequence=}, {dim_cat=}, {padding_value=}, and {use_empty_input=}"
 
     if use_empty_input:
-        assert output_tensor is None, (
-            f"pad_sequence_and_cat returned {output_tensor}, expected None for "
-            f"{parameter_description}."
-        )
+        assert output_tensor is None, f"pad_sequence_and_cat returned {output_tensor}, expected None for {parameter_description}."
         return
 
     manually_padded = pad_sequence(
@@ -526,8 +497,7 @@ def test_pad_sequence_and_cat(
     )
 
     assert output_tensor is not None, (
-        f"pad_sequence_and_cat returned None for non-empty tensors with {parameter_description}, "
-        "expected concatenated Tensor."
+        f"pad_sequence_and_cat returned None for non-empty tensors with {parameter_description}, expected concatenated Tensor."
     )
     assert isinstance(manually_padded, list), (
         f"pad_sequence returned type {type(manually_padded).__name__}, expected list for manual "
@@ -537,10 +507,8 @@ def test_pad_sequence_and_cat(
     expected_tensor: Tensor = torch.cat(manually_padded, dim=dim_cat)
 
     assert tuple(output_tensor.shape) == expected_shape, (
-        f"pad_sequence_and_cat returned shape {tuple(output_tensor.shape)}, expected "
-        f"{expected_shape} for {parameter_description}."
+        f"pad_sequence_and_cat returned shape {tuple(output_tensor.shape)}, expected {expected_shape} for {parameter_description}."
     )
     assert torch.equal(output_tensor, expected_tensor), (
-        f"pad_sequence_and_cat returned {output_tensor}, expected {expected_tensor} for "
-        f"{parameter_description}."
+        f"pad_sequence_and_cat returned {output_tensor}, expected {expected_tensor} for {parameter_description}."
     )

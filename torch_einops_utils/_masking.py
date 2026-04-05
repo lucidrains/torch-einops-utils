@@ -21,11 +21,11 @@ def lens_to_mask(lens, max_len=None):
 
 
 @safe
-def reduce_masks(masks: Sequence[Tensor], op: Callable[[Tensor, Tensor], Tensor]) -> Tensor:
+def reduce_masks(masks: Sequence[Tensor], op: Callable[[Tensor, Tensor], Tensor]) -> Tensor | None:
     mask, *rest_masks = masks
 
     for rest_mask in rest_masks:
-        mask = op(mask, rest_mask)
+        mask: Tensor = op(mask, rest_mask)
 
     return mask
 

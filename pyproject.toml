@@ -13,20 +13,19 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = ["einops>=0.8.1", "torch>=2.5", "typing_extensions>=4.0.0"]
-optional-dependencies = { examples = [], test = ["numpy", "pytest"] }
 
 [project.urls]
 Homepage = "https://pypi.org/project/torch-einops-utils/"
 Repository = "https://github.com/lucidrains/torch-einops-utils"
+
+[project.optional-dependencies]
+examples = []
+test = ["numpy", "pytest"]
 
 [build-system]
 requires = ["hatchling"]
@@ -59,7 +58,7 @@ known_einops = ["einops", "torch_einops_utils"]
 pythonpath = ["."]
 
 [tool.ruff]
-line-length = 102
+line-length = 140
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -84,8 +83,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**.py" = [
-	"S101",
-	"FBT001",]
+  "S101",
+  "FBT001",
+]
 
 [tool.ruff.lint.flake8-import-conventions.aliases]
 "accelerate.utils.dataclasses" = "accelerate_dataclasses"

@@ -1,0 +1,30 @@
+{
+    "cSpell.customDictionaries": {
+        "custom": true, // Enable the `custom` dictionary
+        "internal-terms": false, // Disable the `internal-terms` dictionary
+        "project-words": {
+            "addWords": true,
+            "description": "Words used in this workspace.",
+            "name": "project-words",
+            "path": "${workspaceFolder}/.vscode/code-spell-dictionary-workspace.txt"
+        },
+        "user-words": {
+            "addWords": true,
+            "description": "Words used by this user profile.",
+            "name": "user-words",
+            "path": "${env:APPDATA}/Code Spell Checker/code-spell-dictionary-user.txt"
+        }
+    },
+    "python-envs.pythonProjects": [
+        {
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip",
+            "path": "."
+        }
+    ],
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false
+}
