@@ -2,55 +2,99 @@
 name = "torch-einops-utils"
 version = "0.0.29"
 description = "Personal utility functions"
-authors = [
-    { name = "Phil Wang", email = "lucidrains@gmail.com" }
-]
 readme = "README.md"
 requires-python = ">= 3.9"
-license = { file = "LICENSE" }
-keywords = [
-    'torch',
-    'einops'
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Phil Wang", email = "lucidrains@gmail.com" }]
+keywords = ["einops", "torch"]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-classifiers=[
-    'Development Status :: 4 - Beta',
-    'Intended Audience :: Developers',
-    'Topic :: Scientific/Engineering :: Artificial Intelligence',
-    'License :: OSI Approved :: MIT License',
-    'Programming Language :: Python :: 3.9',
-]
-
-dependencies = [
-    "torch>=2.5",
-    "einops>=0.8.1"
-]
+dependencies = ["einops>=0.8.1", "torch>=2.5", "typing_extensions>=4.0.0"]
+optional-dependencies = { examples = [], test = ["numpy", "pytest"] }
 
 [project.urls]
 Homepage = "https://pypi.org/project/torch-einops-utils/"
 Repository = "https://github.com/lucidrains/torch-einops-utils"
 
-[project.optional-dependencies]
-examples = []
-test = [
-    "pytest"
-]
-
-[tool.pytest.ini_options]
-pythonpath = [
-  "."
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.rye]
-managed = true
-dev-dependencies = []
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["torch_einops_utils"]
+
+[tool.isort]
+multi_line_output = 3
+add_imports = ["from __future__ import annotations"]
+use_parentheses = true
+combine_as_imports = true
+sections = [
+  "FUTURE",
+  "STDLIB",
+  "TORCH",
+  "EINOPS",
+  "THIRDPARTY",
+  "FIRSTPARTY",
+  "LOCALFOLDER"
+]
+known_torch = ["torch", "torchvision", "torchaudio"]
+known_einops = ["einops", "torch_einops_utils"]
+
+[tool.pytest]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 102
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812",
+  "D",
+  "E402",
+  "E701",
+  "E722",
+  "E731",
+  "E741",
+  "FIX",
+  "I",
+  "N812",
+  "PLR0913",
+  "TC",
+  "TD",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = [
+	"S101",
+	"FBT001",]
+
+[tool.ruff.lint.flake8-import-conventions.aliases]
+"accelerate.utils.dataclasses" = "accelerate_dataclasses"
+"bidirectional_cross_attention.BidirectionalCrossAttentionTransformer" = "BiCrossAttnTransformer"
+"einops.layers.torch.EinMix" = "Mix"
+"hyper_connections.manifold_constrained_hyper_connections.get_expand_reduce_stream_functions" = "mc_get_expand_reduce_stream_functions"
+"jax.numpy" = "jnp"
+"kornia.augmentation" = "augs"
+"torch.autograd.grad" = "torch_grad"
+"torch.nn.functional" = "F"
+"torch.nn.parallel.DistributedDataParallel" = "DDP"
+"torchvision.transforms" = "T"

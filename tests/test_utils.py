@@ -1,36 +1,37 @@
+from __future__ import annotations
+
 import torch
 from torch import tensor
 
-from torch_einops_utils.torch_einops_utils import (
-    exists,
-    maybe,
-    shape_with_replace,
-    pad_ndim,
-    pad_left_ndim,
-    pad_right_ndim,
-    pad_right_ndim_to,
-    pad_left_ndim_to,
+from torch_einops_utils import (
     align_dims_left,
+    and_masks,
+    exists,
+    lens_to_mask,
+    masked_mean,
+    or_masks,
+    pack_with_inverse,
     pad_at_dim,
     pad_left_at_dim,
-    pad_right_at_dim,
     pad_left_at_dim_to,
+    pad_left_ndim_to,
+    pad_ndim,
+    pad_right_at_dim,
     pad_right_at_dim_to,
+    pad_right_ndim_to,
     pad_sequence,
     pad_sequence_and_cat,
-    lens_to_mask,
-    and_masks,
-    or_masks,
-    tree_flatten_with_inverse,
-    tree_map_tensor,
-    pack_with_inverse,
-    masked_mean,
+    safe_cat,
+    safe_stack,
+    shape_with_replace,
     slice_at_dim,
     slice_left_at_dim,
     slice_right_at_dim,
-    safe_stack,
-    safe_cat
+    tree_flatten_with_inverse,
+    tree_map_tensor
 )
+from torch_einops_utils.torch_einops_utils import maybe
+
 
 def test_exist():
     assert not exists(None)
@@ -100,18 +101,18 @@ def test_tree_map_tensor():
 
 def test_pack_with_inverse():
     t = torch.randn(3, 12, 2, 2)
-    t, inverse = pack_with_inverse(t, 'b * d')
+    t, inverse = pack_with_inverse(t, "b * d")
 
     assert t.shape == (3, 24, 2)
     t = inverse(t)
     assert t.shape == (3, 12, 2, 2)
 
     u = torch.randn(3, 4, 2)
-    t, inverse = pack_with_inverse([t, u], 'b * d')
+    t, inverse = pack_with_inverse([t, u], "b * d")
     assert t.shape == (3, 28, 2)
 
     t = t.sum(dim = -1)
-    t, u = inverse(t, 'b *')
+    t, u = inverse(t, "b *")
     assert t.shape == (3, 12, 2)
     assert u.shape == (3, 4)
 
@@ -132,7 +133,7 @@ def test_pad_sequence_uneven_images():
     images = [
         torch.randn(3, 16, 17),
         torch.randn(3, 15, 18),
-        torch.randn(3, 17, 16)
+        torch.randn(3, 17, 16),
     ]
 
     padded_height = pad_sequence(images, dim = -2, return_stacked = False)

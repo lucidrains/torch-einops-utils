@@ -1,17 +1,16 @@
 from __future__ import annotations
-from pathlib import Path
-from packaging import version as packaging_version
 
 import pickle
 from functools import wraps
+from pathlib import Path
 
 import torch
 from torch.nn import Module
 
-# helpers
+from torch_einops_utils import exists
 
-def exists(v):
-    return v is not None
+from packaging import version as packaging_version
+
 
 def map_values(fn, v):
     if isinstance(v, (list, tuple)):
@@ -29,7 +28,7 @@ def dehydrate_config(config, config_instance_var_name):
             return dict(
                 __save_load_module__ = True,
                 klass = v.__class__,
-                config = dehydrate_config(getattr(v, config_instance_var_name), config_instance_var_name)
+                config = dehydrate_config(getattr(v, config_instance_var_name), config_instance_var_name),
             )
 
         return v
@@ -39,9 +38,9 @@ def dehydrate_config(config, config_instance_var_name):
 def rehydrate_config(config):
     def rehydrate(v):
         # if the value is reconstruction metadata, instantiate the module using its class and configuration
-        if isinstance(v, dict) and v.get('__save_load_module__', False):
-            klass = v['klass']
-            args, kwargs = v['config']
+        if isinstance(v, dict) and v.get("__save_load_module__", False):
+            klass = v["klass"]
+            args, kwargs = v["config"]
             return klass(*args, **kwargs)
 
         return v
@@ -49,14 +48,14 @@ def rehydrate_config(config):
     return map_values(rehydrate, config)
 
 def save_load(
-    save_method_name = 'save',
-    load_method_name = 'load',
-    config_instance_var_name = '_config',
-    init_and_load_classmethod_name = 'init_and_load',
-    version: str | None = None
+    save_method_name = "save",
+    load_method_name = "load",
+    config_instance_var_name = "_config",
+    init_and_load_classmethod_name = "init_and_load",
+    version: str | None = None,
 ):
     def _save_load(klass):
-        assert issubclass(klass, Module), 'save_load should decorate a subclass of torch.nn.Module'
+        assert issubclass(klass, Module), "save_load should decorate a subclass of torch.nn.Module"
 
         _orig_init = klass.__init__
 
@@ -82,12 +81,12 @@ def save_load(
             path = Path(path)
             assert path.exists()
 
-            pkg = torch.load(str(path), map_location = 'cpu')
+            pkg = torch.load(str(path), map_location = "cpu")
 
-            if exists(version) and exists(pkg['version']) and packaging_version.parse(version) != packaging_version.parse(pkg['version']):
+            if exists(version) and exists(pkg["version"]) and packaging_version.parse(version) != packaging_version.parse(pkg["version"]):
                 print(f'loading saved model at version {pkg["version"]}, but current package version is {version}')
 
-            self.load_state_dict(pkg['model'], strict = strict)
+            self.load_state_dict(pkg["model"], strict = strict)
 
         # init and load from
         # looks for a `config` key in the stored checkpoint, instantiating the model as well as loading the state dict
@@ -96,11 +95,11 @@ def save_load(
         def _init_and_load_from(cls, path, strict = True):
             path = Path(path)
             assert path.exists()
-            pkg = torch.load(str(path), map_location = 'cpu')
+            pkg = torch.load(str(path), map_location = "cpu")
 
-            assert 'config' in pkg, 'model configs were not found in this saved checkpoint'
+            assert "config" in pkg, "model configs were not found in this saved checkpoint"
 
-            config = pickle.loads(pkg['config'])
+            config = pickle.loads(pkg["config"])
             args, kwargs = rehydrate_config(config)
             model = cls(*args, **kwargs)
 
