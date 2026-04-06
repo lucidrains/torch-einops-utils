@@ -27,11 +27,11 @@ def default(v: TVar | None, d: DVar) -> TVar | DVar:
     return v if exists(v) else d
 
 
+# TODO Narrow this at least a little.
 @overload
 def divisible_by(num: T_contra, den: SupportsRMod[T_contra, T_co]) -> bool: ...
 @overload
 def divisible_by(num: SupportsMod[T_contra, T_co], den: T_contra) -> bool: ...
-# TODO Narrow this at least a little.
 def divisible_by(num: Any, den: Any) -> bool:
     with contextlib.suppress(ZeroDivisionError):
         return (num % den) == 0
@@ -53,7 +53,8 @@ def first(arr: SupportsGetItem[T_co]) -> T_co:
 def compact(arr: Iterable[TVar | None]) -> list[TVar]:
     return [*filter(exists, arr)]
 
-# TODO If @safe didn't return on len==1, `safe_stack` could use @safe, but IDK if other packages rely on this behavior.
+
+# TODO Docstring needs to tell the user that `fn` must be able to handle len(compacted) == 1
 def safe(
     fn: Callable[Concatenate[Sequence[Tensor], PSpec], Tensor | None],
 ) -> Callable[Concatenate[Sequence[Tensor | None], PSpec], Tensor | None]:
@@ -62,8 +63,6 @@ def safe(
         compacted: list[Tensor] = compact(tensors)
         if len(compacted) == 0:
             output: Tensor | None = None
-        elif len(compacted) == 1:
-            output = compacted[0]
         else:
             output = fn(compacted, *args, **kwargs)
         return output

@@ -22,6 +22,8 @@ from torch_einops_utils import (
     pad_right_ndim_to,
     pad_sequence,
     pad_sequence_and_cat,
+    safe_cat,
+    safe_stack,
     shape_with_replace,
     slice_at_dim,
     slice_left_at_dim,
@@ -29,7 +31,6 @@ from torch_einops_utils import (
     tree_flatten_with_inverse,
     tree_map_tensor
 )
-from torch_einops_utils._cat_stack import safe_cat, safe_stack
 
 
 def test_exist():

@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import torch
 from torch import Tensor
 
-from torch_einops_utils._helpers import (
+from torch_einops_utils import (
     compact,
     default,
     divisible_by,
@@ -136,13 +136,6 @@ def test_compact_with_tensors(
     ("tensors_list", "expected_output", "expect_none", "expect_identity"),
     [
         pytest.param([None, None], None, True, False, id="all-none"),
-        pytest.param(
-            [None, torch.tensor([2.0, 3.0]), None],
-            torch.tensor([2.0, 3.0]),
-            False,
-            True,
-            id="single-tensor",
-        ),
         pytest.param(
             [torch.tensor([2.0, 3.0]), None, torch.tensor([5.0, 7.0])],
             torch.tensor([2.0, 3.0, 5.0, 7.0]),

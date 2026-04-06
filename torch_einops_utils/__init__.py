@@ -1,11 +1,25 @@
+# TODO remove this ignore directive
+# pyright: reportUnknownVariableType=false
 # isort: split
 from __future__ import annotations
 
-from typing import ParamSpec, Protocol, TypedDict, TypeVar
+from torch_einops_utils._types import (
+    DimAndValue as DimAndValue,
+    DVar as DVar,
+    PSpec as PSpec,
+    SupportsGetItem as SupportsGetItem,
+    SupportsMod as SupportsMod,
+    SupportsRMod as SupportsRMod,
+    T_co as T_co,
+    T_contra as T_contra,
+    TVar as TVar
+)
 
+# isort: split
 from torch_einops_utils._helpers import (
     compact as compact,
     default as default,
+    divisible_by as divisible_by,
     exists as exists,
     first as first,
     identity as identity,
@@ -71,31 +85,3 @@ from torch_einops_utils.torch_einops_utils import (
 from torch_einops_utils.torch_einops_utils import (
     pack_with_inverse as pack_with_inverse
 )
-
-DVar = TypeVar("DVar")
-TVar = TypeVar("TVar")
-T_co = TypeVar("T_co", covariant=True)
-T_contra = TypeVar("T_contra", contravariant=True)
-
-PSpec = ParamSpec("PSpec")
-
-
-class DimAndValue(TypedDict, total=False):
-    dim: int
-    value: float
-
-
-class DimValueLeft(DimAndValue, total=False):
-    left: bool
-
-
-class SupportsGetItem(Protocol[T_co]):
-    def __getitem__(self, index: int) -> T_co: ...
-
-
-class SupportsMod(Protocol[T_contra, T_co]):
-    def __mod__(self, other: T_contra, /) -> T_co: ...
-
-
-class SupportsRMod(Protocol[T_contra, T_co]):
-    def __rmod__(self, other: T_contra, /) -> T_co: ...

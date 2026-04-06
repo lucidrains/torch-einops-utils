@@ -38,10 +38,11 @@ allow-direct-references = true
 packages = ["torch_einops_utils"]
 
 [tool.isort]
-multi_line_output = 3
 add_imports = ["from __future__ import annotations"]
-use_parentheses = true
 combine_as_imports = true
+known_einops = ["einops", "torch_einops_utils"]
+known_torch = ["torch", "torchvision", "torchaudio"]
+multi_line_output = 3
 sections = [
   "FUTURE",
   "STDLIB",
@@ -51,17 +52,13 @@ sections = [
   "FIRSTPARTY",
   "LOCALFOLDER"
 ]
-known_torch = ["torch", "torchvision", "torchaudio"]
-known_einops = ["einops", "torch_einops_utils"]
+use_parentheses = true
 
 [tool.pytest]
 pythonpath = ["."]
 
 [tool.ruff]
 line-length = 140
-
-[tool.ruff.format]
-docstring-code-format = true
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -98,3 +95,6 @@ ignore = [
 "torch.nn.functional" = "F"
 "torch.nn.parallel.DistributedDataParallel" = "DDP"
 "torchvision.transforms" = "T"
+
+[tool.ruff.format]
+docstring-code-format = true
