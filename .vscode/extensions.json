@@ -1,8 +1,0 @@
-{
-    "recommendations": [
-        "streetsidesoftware.code-spell-checker",
-        "ms-python.isort",
-        "charliermarsh.ruff",
-        "tombi-toml.tombi"
-    ]
-}
