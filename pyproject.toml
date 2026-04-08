@@ -25,7 +25,7 @@ Repository = "https://github.com/lucidrains/torch-einops-utils"
 
 [project.optional-dependencies]
 examples = []
-test = ["numpy", "pytest"]
+test = ["more_itertools", "numpy", "pytest"]
 
 [build-system]
 requires = ["hatchling"]

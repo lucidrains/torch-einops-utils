@@ -3,8 +3,8 @@ from __future__ import annotations
 import datetime
 import itertools
 import random
-from collections.abc import Sequence
-
+from collections.abc import Iterator, Sequence
+from more_itertools import extract
 import torch
 from torch import Tensor
 
@@ -18,14 +18,8 @@ TENSOR_SPECS: list[tuple[str, Tensor]] = [
     ("rank-2-2x5-d", torch.tensor([[59.0, 61.0, 97.0, 97.0, 97.0], [67.0, 71.0, 97.0, 97.0, 97.0]])),
     ("rank-2-2x2", torch.tensor([[59.0, 61.0], [67.0, 71.0]])),
     ("rank-2-2x5-e", torch.tensor([[73.0, 73.0, 2.0, 3.0, 5.0], [73.0, 73.0, 7.0, 11.0, 13.0]])),
-    (
-        "rank-2-5x3",
-        torch.tensor([[79.0, 79.0, 79.0], [2.0, 3.0, 5.0], [7.0, 11.0, 13.0], [79.0, 79.0, 79.0], [79.0, 79.0, 79.0]]),
-    ),
-    (
-        "rank-2-2x8",
-        torch.tensor([[89.0, 89.0, 2.0, 3.0, 5.0, 89.0, 89.0, 89.0], [89.0, 89.0, 7.0, 11.0, 13.0, 89.0, 89.0, 89.0]]),
-    ),
+    ("rank-2-5x3", torch.tensor([[79.0, 79.0, 79.0], [2.0, 3.0, 5.0], [7.0, 11.0, 13.0], [79.0, 79.0, 79.0], [79.0, 79.0, 79.0]])),
+    ("rank-2-2x8", torch.tensor([[89.0, 89.0, 2.0, 3.0, 5.0, 89.0, 89.0, 89.0], [89.0, 89.0, 7.0, 11.0, 13.0, 89.0, 89.0, 89.0]])),
     ("rank-2-2x5-f", torch.tensor([[89.0, 89.0, 89.0, 59.0, 61.0], [89.0, 89.0, 89.0, 67.0, 71.0]])),
     ("rank-2-2x5-g", torch.tensor([[101.0, 101.0, 101.0, 59.0, 61.0], [101.0, 101.0, 101.0, 67.0, 71.0]])),
     ("rank-1-len-3-a", torch.tensor([2, 0, 3])),
@@ -52,73 +46,62 @@ def _daily_shuffled_tensors(parameter_index: int) -> list[Tensor]:
     return list_shuffled_tensors
 
 
-def _product_sequences_of_length(sequence_length: int) -> list[tuple[Tensor, ...]]:
-    list_product_parameters: list[list[Tensor]] = [list(LIST_T)]
-    list_product_parameters.extend(_daily_shuffled_tensors(parameter_index) for parameter_index in range(1, sequence_length))
-
-    tuple_product = itertools.product(*list_product_parameters)
-    expected_sequence_count = len(LIST_T)
-    block_size = len(LIST_T) ** (sequence_length - 1)
-    block_index = _day_of_year() % block_size
-
-    list_sequences: list[tuple[Tensor, ...]] = []
-    for tuple_index, tuple_sequence in enumerate(tuple_product):
-        if tuple_index % block_size == block_index:
-            list_sequences.append(tuple_sequence)
-            if len(list_sequences) == expected_sequence_count:
-                break
+def _product_sequences_of_length(sequence_length: int) -> Iterator[tuple[Tensor, ...]]:
+    cartesian_product: Iterator[tuple[Tensor, ...]] = itertools.product(LIST_T, *map(_daily_shuffled_tensors, range(1, sequence_length)))
+    indices: list[int] = torch.arange(len(LIST_T)).tolist()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+    list_sequences: Iterator[tuple[Tensor, ...]] = extract(cartesian_product, indices)
 
     return list_sequences
 
 
 @pytest.fixture
 def list_t_len_1() -> list[list[Tensor]]:
-    return [list(tuple_sequence) for tuple_sequence in _product_sequences_of_length(1)]
+    return [*map(list, _product_sequences_of_length(1))]
 
 
 @pytest.fixture
 def list_t_len_2() -> list[list[Tensor]]:
-    return [list(tuple_sequence) for tuple_sequence in _product_sequences_of_length(2)]
+    return [*map(list, _product_sequences_of_length(2))]
 
 
 @pytest.fixture
 def list_t_len_3() -> list[list[Tensor]]:
-    return [list(tuple_sequence) for tuple_sequence in _product_sequences_of_length(3)]
+    return [*map(list, _product_sequences_of_length(3))]
 
 
 @pytest.fixture
 def list_t_len_4() -> list[list[Tensor]]:
-    return [list(tuple_sequence) for tuple_sequence in _product_sequences_of_length(4)]
+    return [*map(list, _product_sequences_of_length(4))]
 
 
 @pytest.fixture
 def list_t_len_5() -> list[list[Tensor]]:
-    return [list(tuple_sequence) for tuple_sequence in _product_sequences_of_length(5)]
+    return [*map(list, _product_sequences_of_length(5))]
 
 
 @pytest.fixture
 def tuple_t_len_1() -> list[tuple[Tensor, ...]]:
-    return [tuple(tuple_sequence) for tuple_sequence in _product_sequences_of_length(1)]
+    return list(_product_sequences_of_length(1))
 
 
 @pytest.fixture
 def tuple_t_len_2() -> list[tuple[Tensor, ...]]:
-    return [tuple(tuple_sequence) for tuple_sequence in _product_sequences_of_length(2)]
+    return list(_product_sequences_of_length(2))
 
 
 @pytest.fixture
 def tuple_t_len_3() -> list[tuple[Tensor, ...]]:
-    return [tuple(tuple_sequence) for tuple_sequence in _product_sequences_of_length(3)]
+    return list(_product_sequences_of_length(3))
 
 
 @pytest.fixture
 def tuple_t_len_4() -> list[tuple[Tensor, ...]]:
-    return [tuple(tuple_sequence) for tuple_sequence in _product_sequences_of_length(4)]
+    return list(_product_sequences_of_length(4))
 
 
 @pytest.fixture
 def tuple_t_len_5() -> list[tuple[Tensor, ...]]:
-    return [tuple(tuple_sequence) for tuple_sequence in _product_sequences_of_length(5)]
+    return list(_product_sequences_of_length(5))
 
 
 SEQUENCE_FIXTURE_NAMES: tuple[str, ...] = (
@@ -135,9 +118,7 @@ SEQUENCE_FIXTURE_NAMES: tuple[str, ...] = (
 )
 
 
-@pytest.fixture(
-    params=[pytest.param(fixture_name, id=fixture_name) for fixture_name in SEQUENCE_FIXTURE_NAMES],
-)
+@pytest.fixture(params=[pytest.param(fixture_name, id=fixture_name) for fixture_name in SEQUENCE_FIXTURE_NAMES])
 def sequence_collection(request: pytest.FixtureRequest) -> list[Sequence[Tensor]]:
     return request.getfixturevalue(request.param)
 
@@ -157,9 +138,7 @@ def empty_optional_tensor_sequence() -> list[Tensor | None]:
     return []
 
 
-@pytest.fixture(
-    params=T_PARAMS,
-)
+@pytest.fixture(params=T_PARAMS)
 def t(request: pytest.FixtureRequest) -> Tensor:
     return request.param
 
