@@ -6,15 +6,17 @@ from torch import Tensor
 from torch_einops_utils import and_masks, lens_to_mask, or_masks, reduce_masks
 
 
-def test_lens_to_mask(list_tensors: list[Tensor]) -> None:
-    assert len(list_tensors) > 0, "list_tensors must contain values for lens_to_mask coverage."
-
-    lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
+def test_lens_to_mask(t: Tensor) -> None:
+    base_length = int(t.shape[-1])
+    lengths_vector = torch.tensor(
+        [base_length, base_length + 2, base_length + 3, base_length + 5],
+        dtype=torch.long,
+    )
     inferred_mask = lens_to_mask(lengths_vector)
 
     inferred_max_length = int(lengths_vector.max().item())
-    assert tuple(inferred_mask.shape) == (len(list_tensors), inferred_max_length), (
-        f"lens_to_mask returned shape {tuple(inferred_mask.shape)}, expected ({len(list_tensors)}, {inferred_max_length})."
+    assert tuple(inferred_mask.shape) == (len(lengths_vector), inferred_max_length), (
+        f"lens_to_mask returned shape {tuple(inferred_mask.shape)}, expected ({len(lengths_vector)}, {inferred_max_length})."
     )
     assert inferred_mask.dtype == torch.bool, f"lens_to_mask returned dtype {inferred_mask.dtype}, expected torch.bool."
 
@@ -32,12 +34,12 @@ def test_lens_to_mask(list_tensors: list[Tensor]) -> None:
             f"lens_to_mask did not set trailing False values correctly for {tensor_index=} and {length_value=}."
         )
 
-    explicit_max_length = inferred_max_length + 3
+    explicit_max_length = base_length + 23
     explicit_mask = lens_to_mask(lengths_vector, max_len=explicit_max_length)
 
-    assert tuple(explicit_mask.shape) == (len(list_tensors), explicit_max_length), (
+    assert tuple(explicit_mask.shape) == (len(lengths_vector), explicit_max_length), (
         f"lens_to_mask returned shape {tuple(explicit_mask.shape)} with explicit max length, "
-        f"expected ({len(list_tensors)}, {explicit_max_length})."
+        f"expected ({len(lengths_vector)}, {explicit_max_length})."
     )
 
     list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
@@ -51,7 +53,15 @@ def test_lens_to_mask(list_tensors: list[Tensor]) -> None:
             f"lens_to_mask explicit max length did not preserve trailing False values for {tensor_index=} and {length_value=}."
         )
 
-    matrix_lengths = lengths_vector[:8].reshape(4, 2)
+    matrix_lengths = torch.tensor(
+        [
+            [base_length, base_length + 2],
+            [base_length + 3, base_length + 5],
+            [base_length + 7, base_length + 11],
+            [base_length + 13, base_length + 17],
+        ],
+        dtype=torch.long,
+    )
     matrix_mask = lens_to_mask(matrix_lengths, max_len=explicit_max_length)
 
     assert tuple(matrix_mask.shape) == (4, 2, explicit_max_length), (
@@ -75,9 +85,11 @@ def test_lens_to_mask(list_tensors: list[Tensor]) -> None:
 
 
 def test_reduce_masks(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_optional_tensor_sequence: list[Tensor | None],
 ) -> None:
+    list_tensors = sequence_tensors
+
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 
@@ -136,9 +148,11 @@ def test_reduce_masks(
 
 
 def test_and_masks(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_optional_tensor_sequence: list[Tensor | None],
 ) -> None:
+    list_tensors = sequence_tensors
+
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 
@@ -178,9 +192,11 @@ def test_and_masks(
 
 
 def test_or_masks(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_optional_tensor_sequence: list[Tensor | None],
 ) -> None:
+    list_tensors = sequence_tensors
+
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 

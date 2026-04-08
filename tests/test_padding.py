@@ -137,230 +137,223 @@ def _assert_left_padded_sequence_matches_inputs(
     [pytest.param(LEFT_PAD_WIDTH, RIGHT_PAD_WIDTH, id="asymmetric-padding-widths")],
 )
 def test_pad_at_dim(
-    list_tensors: list[Tensor],
+    t: Tensor,
     left_pad_width: int,
     right_pad_width: int,
 ) -> None:
-    for tensor_index, tensor_value in enumerate(list_tensors):
-        fill_value = _fill_value_for_tensor(
-            tensor_value,
-            float_fill_value=PAD_FILL_FLOAT_73,
-            int_fill_value=PAD_FILL_INT_73,
+    fill_value = _fill_value_for_tensor(
+        t,
+        float_fill_value=PAD_FILL_FLOAT_73,
+        int_fill_value=PAD_FILL_INT_73,
+    )
+
+    for dimension_index in _dimension_inputs_for_tensor(t):
+        normalized_dimension_index = _normalize_dimension_index(t, dimension_index)
+        original_length = t.shape[normalized_dimension_index]
+
+        result = pad_at_dim(
+            t,
+            (left_pad_width, right_pad_width),
+            dim=dimension_index,
+            value=float(fill_value),
         )
 
-        for dimension_index in _dimension_inputs_for_tensor(tensor_value):
-            normalized_dimension_index = _normalize_dimension_index(tensor_value, dimension_index)
-            original_length = tensor_value.shape[normalized_dimension_index]
+        expected_shape = list(t.shape)
+        expected_shape[normalized_dimension_index] = original_length + left_pad_width + right_pad_width
 
-            result = pad_at_dim(
-                tensor_value,
-                (left_pad_width, right_pad_width),
-                dim=dimension_index,
-                value=float(fill_value),
-            )
+        assert tuple(result.shape) == tuple(expected_shape), (
+            f"pad_at_dim returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
+            f"{dimension_index=} and {tuple(t.shape)=}."
+        )
 
-            expected_shape = list(tensor_value.shape)
-            expected_shape[normalized_dimension_index] = original_length + left_pad_width + right_pad_width
+        center_slice = result.narrow(normalized_dimension_index, left_pad_width, original_length)
+        assert torch.equal(center_slice, t), (
+            f"pad_at_dim changed center values for {dimension_index=} and {tuple(t.shape)=}; original tensor must be preserved."
+        )
 
-            assert tuple(result.shape) == tuple(expected_shape), (
-                f"pad_at_dim returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
-                f"{tensor_index=}, {dimension_index=}."
-            )
+        left_padding_slice = result.narrow(normalized_dimension_index, 0, left_pad_width)
+        right_padding_slice = result.narrow(
+            normalized_dimension_index,
+            result.shape[normalized_dimension_index] - right_pad_width,
+            right_pad_width,
+        )
 
-            center_slice = result.narrow(normalized_dimension_index, left_pad_width, original_length)
-            assert torch.equal(center_slice, tensor_value), (
-                f"pad_at_dim changed center values for {tensor_index=}, {dimension_index=}; original tensor must be preserved."
-            )
-
-            left_padding_slice = result.narrow(normalized_dimension_index, 0, left_pad_width)
-            right_padding_slice = result.narrow(
-                normalized_dimension_index,
-                result.shape[normalized_dimension_index] - right_pad_width,
-                right_pad_width,
-            )
-
-            assert torch.all(left_padding_slice == fill_value), (
-                f"pad_at_dim left padding values are incorrect for {tensor_index=}, {dimension_index=}."
-            )
-            assert torch.all(right_padding_slice == fill_value), (
-                f"pad_at_dim right padding values are incorrect for {tensor_index=}, {dimension_index=}."
-            )
+        assert torch.all(left_padding_slice == fill_value), (
+            f"pad_at_dim left padding values are incorrect for {dimension_index=} and {tuple(t.shape)=}."
+        )
+        assert torch.all(right_padding_slice == fill_value), (
+            f"pad_at_dim right padding values are incorrect for {dimension_index=} and {tuple(t.shape)=}."
+        )
 
 
 @pytest.mark.parametrize("left_pad_width", [pytest.param(LEFT_PAD_WIDTH, id="left-padding-width-two")])
 def test_pad_left_at_dim(
-    list_tensors: list[Tensor],
+    t: Tensor,
     left_pad_width: int,
 ) -> None:
-    for tensor_index, tensor_value in enumerate(list_tensors):
-        fill_value = _fill_value_for_tensor(
-            tensor_value,
-            float_fill_value=PAD_FILL_FLOAT_79,
-            int_fill_value=PAD_FILL_INT_79,
+    fill_value = _fill_value_for_tensor(
+        t,
+        float_fill_value=PAD_FILL_FLOAT_79,
+        int_fill_value=PAD_FILL_INT_79,
+    )
+
+    for dimension_index in _dimension_inputs_for_tensor(t):
+        expected = pad_at_dim(
+            t,
+            (left_pad_width, 0),
+            dim=dimension_index,
+            value=float(fill_value),
+        )
+        result = pad_left_at_dim(
+            t,
+            left_pad_width,
+            dim=dimension_index,
+            value=float(fill_value),
         )
 
-        for dimension_index in _dimension_inputs_for_tensor(tensor_value):
-            expected = pad_at_dim(
-                tensor_value,
-                (left_pad_width, 0),
-                dim=dimension_index,
-                value=float(fill_value),
-            )
-            result = pad_left_at_dim(
-                tensor_value,
-                left_pad_width,
-                dim=dimension_index,
-                value=float(fill_value),
-            )
-
-            assert torch.equal(result, expected), (
-                f"pad_left_at_dim does not match pad_at_dim for {tensor_index=}, {dimension_index=}."
-            )
+        assert torch.equal(result, expected), (
+            f"pad_left_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
+        )
 
 
 @pytest.mark.parametrize("right_pad_width", [pytest.param(LEFT_PAD_WIDTH, id="right-padding-width-two")])
 def test_pad_right_at_dim(
-    list_tensors: list[Tensor],
+    t: Tensor,
     right_pad_width: int,
 ) -> None:
-    for tensor_index, tensor_value in enumerate(list_tensors):
-        fill_value = _fill_value_for_tensor(
-            tensor_value,
-            float_fill_value=PAD_FILL_FLOAT_83,
-            int_fill_value=PAD_FILL_INT_83,
+    fill_value = _fill_value_for_tensor(
+        t,
+        float_fill_value=PAD_FILL_FLOAT_83,
+        int_fill_value=PAD_FILL_INT_83,
+    )
+
+    for dimension_index in _dimension_inputs_for_tensor(t):
+        expected = pad_at_dim(
+            t,
+            (0, right_pad_width),
+            dim=dimension_index,
+            value=float(fill_value),
+        )
+        result = pad_right_at_dim(
+            t,
+            right_pad_width,
+            dim=dimension_index,
+            value=float(fill_value),
         )
 
-        for dimension_index in _dimension_inputs_for_tensor(tensor_value):
-            expected = pad_at_dim(
-                tensor_value,
-                (0, right_pad_width),
-                dim=dimension_index,
-                value=float(fill_value),
-            )
-            result = pad_right_at_dim(
-                tensor_value,
-                right_pad_width,
-                dim=dimension_index,
-                value=float(fill_value),
-            )
-
-            assert torch.equal(result, expected), (
-                f"pad_right_at_dim does not match pad_at_dim for {tensor_index=}, {dimension_index=}."
-            )
+        assert torch.equal(result, expected), (
+            f"pad_right_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
+        )
 
 
 @pytest.mark.parametrize("length_step", [pytest.param(LENGTH_STEP, id="length-step-three")])
 def test_pad_left_at_dim_to(
-    list_tensors: list[Tensor],
+    t: Tensor,
     length_step: int,
 ) -> None:
-    assert len(list_tensors) > 0, "list_tensors must include data for meaningful pad_left_at_dim_to coverage."
+    fill_value = _fill_value_for_tensor(
+        t,
+        float_fill_value=PAD_FILL_FLOAT_89,
+        int_fill_value=PAD_FILL_INT_89,
+    )
 
-    for tensor_index, tensor_value in enumerate(list_tensors):
-        fill_value = _fill_value_for_tensor(
-            tensor_value,
-            float_fill_value=PAD_FILL_FLOAT_89,
-            int_fill_value=PAD_FILL_INT_89,
-        )
+    for dimension_index in _dimension_inputs_for_tensor(t):
+        normalized_dimension_index = _normalize_dimension_index(t, dimension_index)
+        current_length = t.shape[normalized_dimension_index]
+        target_lengths = sorted({max(current_length - 2, 0), current_length, current_length + 1, current_length + length_step})
 
-        for dimension_index in _dimension_inputs_for_tensor(tensor_value):
-            normalized_dimension_index = _normalize_dimension_index(tensor_value, dimension_index)
-            current_length = tensor_value.shape[normalized_dimension_index]
-            target_lengths = sorted({max(current_length - 2, 0), current_length, current_length + 1, current_length + length_step})
+        for target_length in target_lengths:
+            result = pad_left_at_dim_to(
+                t,
+                target_length,
+                dim=dimension_index,
+                value=float(fill_value),
+            )
 
-            for target_length in target_lengths:
-                result = pad_left_at_dim_to(
-                    tensor_value,
-                    target_length,
-                    dim=dimension_index,
-                    value=float(fill_value),
+            if target_length <= current_length:
+                assert result is t, (
+                    f"pad_left_at_dim_to returned a new tensor for non-expanding case with "
+                    f"{dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
                 )
+                continue
 
-                if target_length <= current_length:
-                    assert result is tensor_value, (
-                        f"pad_left_at_dim_to returned a new tensor for non-expanding case with {tensor_index=}, "
-                        f"{dimension_index=}, {target_length=}."
-                    )
-                    continue
+            left_pad_width = target_length - current_length
+            expected_shape = list(t.shape)
+            expected_shape[normalized_dimension_index] = target_length
 
-                left_pad_width = target_length - current_length
-                expected_shape = list(tensor_value.shape)
-                expected_shape[normalized_dimension_index] = target_length
+            assert tuple(result.shape) == tuple(expected_shape), (
+                f"pad_left_at_dim_to returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
+                f"{dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
 
-                assert tuple(result.shape) == tuple(expected_shape), (
-                    f"pad_left_at_dim_to returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
-                    f"{tensor_index=}, {dimension_index=}, {target_length=}."
-                )
+            center_slice = result.narrow(normalized_dimension_index, left_pad_width, current_length)
+            left_padding_slice = result.narrow(normalized_dimension_index, 0, left_pad_width)
 
-                center_slice = result.narrow(normalized_dimension_index, left_pad_width, current_length)
-                left_padding_slice = result.narrow(normalized_dimension_index, 0, left_pad_width)
-
-                assert torch.equal(center_slice, tensor_value), (
-                    f"pad_left_at_dim_to changed center values for {tensor_index=}, {dimension_index=}, {target_length=}."
-                )
-                assert torch.all(left_padding_slice == fill_value), (
-                    f"pad_left_at_dim_to left padding values are incorrect for {tensor_index=}, {dimension_index=}, {target_length=}."
-                )
+            assert torch.equal(center_slice, t), (
+                f"pad_left_at_dim_to changed center values for {dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
+            assert torch.all(left_padding_slice == fill_value), (
+                f"pad_left_at_dim_to left padding values are incorrect for {dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
 
 
 @pytest.mark.parametrize("length_step", [pytest.param(LENGTH_STEP, id="length-step-three")])
 def test_pad_right_at_dim_to(
-    list_tensors: list[Tensor],
+    t: Tensor,
     length_step: int,
 ) -> None:
-    assert len(list_tensors) > 0, "list_tensors must include data for meaningful pad_right_at_dim_to coverage."
+    fill_value = _fill_value_for_tensor(
+        t,
+        float_fill_value=PAD_FILL_FLOAT_97,
+        int_fill_value=PAD_FILL_INT_97,
+    )
 
-    for tensor_index, tensor_value in enumerate(list_tensors):
-        fill_value = _fill_value_for_tensor(
-            tensor_value,
-            float_fill_value=PAD_FILL_FLOAT_97,
-            int_fill_value=PAD_FILL_INT_97,
-        )
+    for dimension_index in _dimension_inputs_for_tensor(t):
+        normalized_dimension_index = _normalize_dimension_index(t, dimension_index)
+        current_length = t.shape[normalized_dimension_index]
+        target_lengths = sorted({max(current_length - 2, 0), current_length, current_length + 1, current_length + length_step})
 
-        for dimension_index in _dimension_inputs_for_tensor(tensor_value):
-            normalized_dimension_index = _normalize_dimension_index(tensor_value, dimension_index)
-            current_length = tensor_value.shape[normalized_dimension_index]
-            target_lengths = sorted({max(current_length - 2, 0), current_length, current_length + 1, current_length + length_step})
+        for target_length in target_lengths:
+            result = pad_right_at_dim_to(
+                t,
+                target_length,
+                dim=dimension_index,
+                value=float(fill_value),
+            )
 
-            for target_length in target_lengths:
-                result = pad_right_at_dim_to(
-                    tensor_value,
-                    target_length,
-                    dim=dimension_index,
-                    value=float(fill_value),
+            if target_length <= current_length:
+                assert result is t, (
+                    f"pad_right_at_dim_to returned a new tensor for non-expanding case with "
+                    f"{dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
                 )
+                continue
 
-                if target_length <= current_length:
-                    assert result is tensor_value, (
-                        f"pad_right_at_dim_to returned a new tensor for non-expanding case with {tensor_index=}, "
-                        f"{dimension_index=}, {target_length=}."
-                    )
-                    continue
+            right_pad_width = target_length - current_length
+            expected_shape = list(t.shape)
+            expected_shape[normalized_dimension_index] = target_length
 
-                right_pad_width = target_length - current_length
-                expected_shape = list(tensor_value.shape)
-                expected_shape[normalized_dimension_index] = target_length
+            assert tuple(result.shape) == tuple(expected_shape), (
+                f"pad_right_at_dim_to returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
+                f"{dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
 
-                assert tuple(result.shape) == tuple(expected_shape), (
-                    f"pad_right_at_dim_to returned shape {tuple(result.shape)}, expected {tuple(expected_shape)} for "
-                    f"{tensor_index=}, {dimension_index=}, {target_length=}."
-                )
+            center_slice = result.narrow(normalized_dimension_index, 0, current_length)
+            right_padding_slice = result.narrow(normalized_dimension_index, current_length, right_pad_width)
 
-                center_slice = result.narrow(normalized_dimension_index, 0, current_length)
-                right_padding_slice = result.narrow(normalized_dimension_index, current_length, right_pad_width)
-
-                assert torch.equal(center_slice, tensor_value), (
-                    f"pad_right_at_dim_to changed center values for {tensor_index=}, {dimension_index=}, {target_length=}."
-                )
-                assert torch.all(right_padding_slice == fill_value), (
-                    f"pad_right_at_dim_to right padding values are incorrect for {tensor_index=}, {dimension_index=}, {target_length=}."
-                )
+            assert torch.equal(center_slice, t), (
+                f"pad_right_at_dim_to changed center values for {dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
+            assert torch.all(right_padding_slice == fill_value), (
+                f"pad_right_at_dim_to right padding values are incorrect for {dimension_index=}, {target_length=}, and {tuple(t.shape)=}."
+            )
 
 
 def test_pad_sequence(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_tensor_sequence: list[Tensor],
 ) -> None:
+    list_tensors = sequence_tensors
+
     empty_result = pad_sequence(empty_tensor_sequence)
     assert empty_result is None, "pad_sequence must return None for empty input tensors."
 
@@ -494,9 +487,11 @@ def test_pad_sequence(
 
 
 def test_pad_sequence_and_cat(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_tensor_sequence: list[Tensor],
 ) -> None:
+    list_tensors = sequence_tensors
+
     empty_result = pad_sequence_and_cat(empty_tensor_sequence)
     assert empty_result is None, "pad_sequence_and_cat must return None for empty input tensors."
 

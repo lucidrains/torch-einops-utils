@@ -17,11 +17,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-dependencies = [
-  "einops>=0.8.1",
-  "torch>=2.5",
-  "typing_extensions>=4.0.0"
-]
+dependencies = ["einops>=0.8.1", "torch>=2.5", "typing_extensions>=4.0.0"]
 
 [project.urls]
 Homepage = "https://pypi.org/project/torch-einops-utils/"
@@ -67,7 +63,8 @@ sections = [
 use_parentheses = true
 
 [tool.pytest]
-pythonpath = ["."]
+log_auto_indent = "On"
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 140

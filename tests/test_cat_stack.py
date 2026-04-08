@@ -9,9 +9,11 @@ import pytest
 
 
 def test_safe_stack(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_optional_tensor_sequence: list[Tensor | None],
 ) -> None:
+    list_tensors = sequence_tensors
+
     empty_result = safe_stack(empty_optional_tensor_sequence)
     assert empty_result is None, "safe_stack must return None for empty input tensors."
 
@@ -77,9 +79,11 @@ def test_safe_stack(
 
 
 def test_safe_cat(
-    list_tensors: list[Tensor],
+    sequence_tensors: list[Tensor],
     empty_optional_tensor_sequence: list[Tensor | None],
 ) -> None:
+    list_tensors = sequence_tensors
+
     empty_result = safe_cat(empty_optional_tensor_sequence)
     assert empty_result is None, "safe_cat must return None for empty input tensors."
 
