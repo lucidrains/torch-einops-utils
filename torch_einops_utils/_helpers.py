@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from functools import wraps
-from typing import Any, Concatenate, TypeGuard, overload
+from typing import Concatenate, TypeGuard, overload
 
 from torch import Tensor
 
-from torch_einops_utils import DVar, PSpec, SupportsIntIndex, T_co, TVar
+from torch_einops_utils import (
+    DVar,
+    IdentityCallable,
+    PSpec,
+    SupportsIntIndex,
+    T_co,
+    TVar
+)
 
 
 def compact(arr: Iterable[TVar | None]) -> list[TVar]:
@@ -43,11 +50,7 @@ def compact(arr: Iterable[TVar | None]) -> list[TVar]:
     return [*filter(exists, arr)]
 
 
-@overload
-def default(v: None, d: DVar) -> DVar: ...
-@overload
-def default(v: TVar, d: object) -> TVar: ...
-def default(v: TVar | None, d: DVar) -> TVar | DVar:
+def default(v: TVar | None, d: TVar) -> TVar:
     """Return `v` when `v` is not `None`, or `d` when `v` is `None`.
 
     You can use `default` to supply a fallback value for optional parameters and accumulators.
@@ -166,7 +169,7 @@ def first(arr: SupportsIntIndex[T_co]) -> T_co:
     return arr[0]
 
 
-def identity(t: TVar, *args: Any, **kwargs: Any) -> TVar:  # noqa: ANN401, ARG001
+def identity(t: TVar, *args: object, **kwargs: object) -> TVar:  # noqa: ARG001
     """Return `t` unchanged, ignoring all other arguments.
 
     You can use `identity` as a no-op callable in contexts that require a function but no
@@ -195,9 +198,90 @@ def identity(t: TVar, *args: Any, **kwargs: Any) -> TVar:  # noqa: ANN401, ARG00
 
     References
     ----------
-    [1] torch_einops_utils.torch_einops_utils.maybe
+    [1] torch_einops_utils._helpers.identity
     """
     return t
+
+
+@overload
+def maybe(fn: Callable[Concatenate[DVar, PSpec], TVar]) -> Callable[Concatenate[DVar | None, PSpec], TVar | None]: ...
+@overload
+def maybe(fn: None) -> IdentityCallable: ...
+def maybe(
+    fn: Callable[Concatenate[DVar, PSpec], TVar] | None,
+) -> Callable[Concatenate[DVar | None, PSpec], TVar | None] | IdentityCallable:
+    """Wrap `fn` so that the wrapped function returns `None` when the first argument is `None`.
+
+    You can use this function to conditionally apply `fn` without adding an explicit `if`/`else`
+    guard at every call site. The returned callable passes all positional and keyword arguments to
+    `fn` unchanged when the first argument is not `None`, and returns `None` immediately when the
+    first argument is `None`. When `fn` is `None`, the function returns `identity` [1], which passes
+    its first argument through without modification.
+
+    Parameters
+    ----------
+    fn : Callable[Concatenate[DVar, PSpec], TVar] | None
+        The callable to wrap, or `None`. The first positional parameter of `fn` is the value that may
+        be `None`. Pass `None` to receive an identity function.
+
+    Returns
+    -------
+    wrapped : Callable[Concatenate[DVar | None, PSpec], TVar | None] | Callable[..., TVar]
+        A wrapped version of `fn` that short-circuits to `None` when the first argument is `None`, or
+        `identity` when `fn` is `None`.
+
+    See Also
+    --------
+    identity : Return the first argument unchanged.
+
+    Examples
+    --------
+    Skip the function when the first argument is `None` [2]:
+
+        ```python
+        from torch_einops_utils import maybe
+
+        result = maybe(lambda t: t + 1)(None)
+        # result is None
+        ```
+
+    Pass `None` as `fn` to receive an identity function [2]:
+
+        ```python
+        result = maybe(None)(1)
+        # result == 1
+        ```
+
+    Conditionally convert episode lengths to a mask [3]:
+
+        ```python
+        from torch_einops_utils import maybe, lens_to_mask
+
+        mask = maybe(lens_to_mask)(episode_lens, seq_len)
+        # mask is None when episode_lens is None,
+        # otherwise mask == lens_to_mask(episode_lens, seq_len)
+        ```
+
+    References
+    ----------
+    [1] torch_einops_utils._helpers.identity
+
+    [2] tests.test_utils.test_maybe
+
+    [3] metacontroller.metacontroller.ratio_loss
+        https://context7.com/lucidrains/metacontroller
+    """
+    if not exists(fn):
+        return identity
+
+    @wraps(fn)
+    def inner(t: DVar | None, *args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar | None:
+        if not exists(t):
+            return None
+
+        return fn(t, *args, **kwargs)
+
+    return inner
 
 
 def safe(
@@ -243,6 +327,7 @@ def safe(
 
     [4] torch_einops_utils._masking.reduce_masks
     """
+
     @wraps(fn)
     def inner(tensors: Sequence[Tensor | None], *args: PSpec.args, **kwargs: PSpec.kwargs) -> Tensor | None:
         compacted: list[Tensor] = compact(tensors)

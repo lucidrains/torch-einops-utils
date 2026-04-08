@@ -194,7 +194,7 @@ def pad_right_ndim_to(t: Tensor, ndims: int) -> Tensor:
 
         # dreamer4: align time '(b,)' with video '(b, c, t, h, w)'
         padded_time = pad_right_ndim_to(time[None], video.ndim)
-        pred_flow = (pred_video - video) / (1. - padded_time)
+        pred_flow = (pred_video - video) / (1.0 - padded_time)
         ```
 
     Scale a flow prediction using a denominator with lower rank than the prediction:
@@ -203,7 +203,7 @@ def pad_right_ndim_to(t: Tensor, ndims: int) -> Tensor:
         from torch_einops_utils import pad_right_ndim_to
 
         # mimic_video: convert model output to flow space
-        pred_flow = (pred - actions) / pad_right_ndim_to(1. - action_time, pred.ndim).clamp_min(eps)
+        pred_flow = (pred - actions) / pad_right_ndim_to(1.0 - action_time, pred.ndim).clamp_min(eps)
         ```
 
     References

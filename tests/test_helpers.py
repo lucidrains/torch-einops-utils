@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import torch
 from torch import Tensor
@@ -12,6 +12,7 @@ from torch_einops_utils import (
     exists,
     first,
     identity,
+    maybe,
     safe
 )
 
@@ -87,6 +88,66 @@ def test_identity_returns_exact_object(input_value: int | str | list[int]) -> No
 
 
 @pytest.mark.parametrize(
+    ("input_value", "extra_positional", "extra_keyword"),
+    [
+        pytest.param(13, "ignored", "value", id="none-function-int"),
+        pytest.param("alpha", 21, "marker", id="none-function-string"),
+    ],
+)
+def test_maybe_none_returns_identity_function(
+    input_value: int | str,
+    extra_positional: int | str,
+    extra_keyword: str,
+) -> None:
+    wrapped: Callable[..., int | str] = maybe(None)
+    result = wrapped(input_value, extra_positional, keyword=extra_keyword)
+    assert result is input_value, f"maybe(None) returned {result}, expected identity passthrough for {input_value=}."
+
+
+@pytest.mark.parametrize(
+    ("input_value", "expected", "offset", "scale"),
+    [
+        pytest.param(None, None, 5, 2, id="none-input-short-circuit"),
+        pytest.param(21, 52, 5, 2, id="value-input-applies-function"),
+    ],
+)
+def test_maybe_short_circuits_and_applies_function(
+    input_value: int | None,
+    expected: int | None,
+    offset: int,
+    scale: int,
+) -> None:
+    def transform(value: int, additional: int, multiplier: int = 1) -> int:
+        return (value + additional) * multiplier
+
+    result = maybe(transform)(input_value, offset, multiplier=scale)
+    assert result == expected, f"maybe(transform) returned {result}, expected {expected} for {input_value=}, {offset=}, and {scale=}."
+
+
+@pytest.mark.parametrize(
+    ("input_value", "expected_called"),
+    [
+        pytest.param(None, False, id="none-input-not-called"),
+        pytest.param(8, True, id="value-input-called"),
+    ],
+)
+def test_maybe_controls_underlying_function_invocation(
+    input_value: int | None,
+    expected_called: bool,
+) -> None:
+    invocation_state: dict[str, bool] = {"called": False}
+
+    def transform(value: int) -> int:
+        invocation_state["called"] = True
+        return value + 3
+
+    maybe(transform)(input_value)
+    assert invocation_state["called"] is expected_called, (
+        f"maybe(transform) call state was {invocation_state['called']}, expected {expected_called} for {input_value=}."
+    )
+
+
+@pytest.mark.parametrize(
     ("sequence_value", "expected_first"),
     [
         pytest.param([2, 3, 5], 2, id="list-of-int"),
@@ -100,7 +161,6 @@ def test_first_returns_zero_index(
 ) -> None:
     result = first(sequence_value)
     assert result == expected_first, f"first returned {result}, expected {expected_first} for {sequence_value=}."
-
 
 
 @pytest.mark.parametrize(

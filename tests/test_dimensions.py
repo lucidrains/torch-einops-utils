@@ -32,9 +32,7 @@ def test_align_dims_left(t: Tensor, ndim: int | None) -> None:
     assert tuple(aligned[0].shape) == expected_shape, (
         f"align_dims_left returned shape {tuple(aligned[0].shape)}, expected {expected_shape} for {ndim=} and {tuple(t.shape)=}."
     )
-    assert torch.equal(aligned[0].reshape(t.shape), t), (
-        f"align_dims_left changed tensor values for {ndim=} and {tuple(t.shape)=}."
-    )
+    assert torch.equal(aligned[0].reshape(t.shape), t), f"align_dims_left changed tensor values for {ndim=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize(
@@ -79,9 +77,7 @@ def test_pad_left_ndim(t: Tensor, ndims: int) -> None:
     assert tuple(padded.shape) == expected_shape, (
         f"pad_left_ndim returned shape {tuple(padded.shape)}, expected {expected_shape} for {ndims=} and {tuple(t.shape)=}."
     )
-    assert torch.equal(padded.reshape(t.shape), t), (
-        f"pad_left_ndim changed tensor values for {ndims=} and {tuple(t.shape)=}."
-    )
+    assert torch.equal(padded.reshape(t.shape), t), f"pad_left_ndim changed tensor values for {ndims=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize(
@@ -100,12 +96,9 @@ def test_pad_left_ndim_to(t: Tensor, target_ndim_delta: int) -> None:
     result = pad_left_ndim_to(t, target_ndim)
 
     assert tuple(result.shape) == expected_shape, (
-        f"pad_left_ndim_to returned shape {tuple(result.shape)}, expected {expected_shape} "
-        f"for {target_ndim=} and {tuple(t.shape)=}."
+        f"pad_left_ndim_to returned shape {tuple(result.shape)}, expected {expected_shape} for {target_ndim=} and {tuple(t.shape)=}."
     )
-    assert torch.equal(result.reshape(t.shape), t), (
-        f"pad_left_ndim_to changed tensor values for {target_ndim=} and {tuple(t.shape)=}."
-    )
+    assert torch.equal(result.reshape(t.shape), t), f"pad_left_ndim_to changed tensor values for {target_ndim=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize(
@@ -139,9 +132,7 @@ def test_pad_right_ndim(t: Tensor, ndims: int) -> None:
     assert tuple(padded.shape) == expected_shape, (
         f"pad_right_ndim returned shape {tuple(padded.shape)}, expected {expected_shape} for {ndims=} and {tuple(t.shape)=}."
     )
-    assert torch.equal(padded.reshape(t.shape), t), (
-        f"pad_right_ndim changed tensor values for {ndims=} and {tuple(t.shape)=}."
-    )
+    assert torch.equal(padded.reshape(t.shape), t), f"pad_right_ndim changed tensor values for {ndims=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize(
@@ -160,9 +151,6 @@ def test_pad_right_ndim_to(t: Tensor, target_ndim_delta: int) -> None:
     result = pad_right_ndim_to(t, target_ndim)
 
     assert tuple(result.shape) == expected_shape, (
-        f"pad_right_ndim_to returned shape {tuple(result.shape)}, expected {expected_shape} "
-        f"for {target_ndim=} and {tuple(t.shape)=}."
+        f"pad_right_ndim_to returned shape {tuple(result.shape)}, expected {expected_shape} for {target_ndim=} and {tuple(t.shape)=}."
     )
-    assert torch.equal(result.reshape(t.shape), t), (
-        f"pad_right_ndim_to changed tensor values for {target_ndim=} and {tuple(t.shape)=}."
-    )
+    assert torch.equal(result.reshape(t.shape), t), f"pad_right_ndim_to changed tensor values for {target_ndim=} and {tuple(t.shape)=}."

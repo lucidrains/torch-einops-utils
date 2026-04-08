@@ -60,7 +60,7 @@ def pad_at_dim(
     in the time dimension:
 
         ```python
-        action_tokens = pad_at_dim(action_tokens[:, :-1], (1, 0), value=0., dim=1)
+        action_tokens = pad_at_dim(action_tokens[:, :-1], (1, 0), value=0.0, dim=1)
         ```
 
     From locoformer [4], creating a one-step-delayed copy of an action sequence:
@@ -169,6 +169,7 @@ def pad_right_at_dim(t: Tensor, pad: int, **kwargs: Unpack[DimAndValue]) -> Tens
         ```python
         import torch
         from torch_einops_utils import pad_right_at_dim
+
         t = torch.randn(3, 6, 1)
         assert pad_right_at_dim(t, 1, dim=1).shape == torch.Size([3, 7, 1])
         ```
@@ -422,18 +423,14 @@ def pad_sequence(
     per-sample padding widths for start-position tracking:
 
         ```python
-        student_prompt_ids, student_seq_start_pos = pad_sequence(
-            student_prompt_ids, return_lens=True, left=True, pad_lens=True
-        )
+        student_prompt_ids, student_seq_start_pos = pad_sequence(student_prompt_ids, return_lens=True, left=True, pad_lens=True)
         ```
 
     From pi-zero-pytorch [6], right-padding a list of discrete action id tensors with a sentinel fill
     value of `-1`:
 
         ```python
-        discrete_action_ids = pad_sequence(
-            [tensor(ids) for ids in discrete_action_ids], value=-1
-        )
+        discrete_action_ids = pad_sequence([tensor(ids) for ids in discrete_action_ids], value=-1)
         ```
 
     References

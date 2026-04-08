@@ -1,15 +1,15 @@
-# TODO remove this ignore directive
-# pyright: reportUnknownVariableType=false
 # isort: split
 from __future__ import annotations
 
 from torch_einops_utils._types import (
     DimAndValue as DimAndValue,
     DVar as DVar,
+    IdentityCallable as IdentityCallable,
     PSpec as PSpec,
     SupportsIntIndex as SupportsIntIndex,
     T_co as T_co,
-    TVar as TVar
+    TVar as TVar,
+    TypeModule as TypeModule
 )
 
 # isort: split
@@ -20,6 +20,7 @@ from torch_einops_utils._helpers import (
     exists as exists,
     first as first,
     identity as identity,
+    maybe as maybe,
     safe as safe
 )
 
@@ -67,10 +68,7 @@ from torch_einops_utils._cat_stack import (
 )
 
 # isort: split
-from torch_einops_utils.torch_einops_utils import (
-    masked_mean as masked_mean,
-    maybe as maybe
-)
+from torch_einops_utils.torch_einops_utils import masked_mean as masked_mean
 
 # isort: split
 from torch_einops_utils.torch_einops_utils import (

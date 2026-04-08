@@ -59,9 +59,7 @@ def _float_row_two_tensors(list_tensors: list[Tensor]) -> list[Tensor]:
     return [
         tensor_value
         for tensor_value in list_tensors
-        if tensor_value.ndim == ROW_COUNT_TWO
-        and tensor_value.shape[0] == ROW_COUNT_TWO
-        and tensor_value.is_floating_point()
+        if tensor_value.ndim == ROW_COUNT_TWO and tensor_value.shape[0] == ROW_COUNT_TWO and tensor_value.is_floating_point()
     ]
 
 
@@ -69,9 +67,7 @@ def _float_width_three_tensors(list_tensors: list[Tensor]) -> list[Tensor]:
     return [
         tensor_value
         for tensor_value in list_tensors
-        if tensor_value.ndim == ROW_COUNT_TWO
-        and tensor_value.shape[1] == WIDTH_THREE
-        and tensor_value.is_floating_point()
+        if tensor_value.ndim == ROW_COUNT_TWO and tensor_value.shape[1] == WIDTH_THREE and tensor_value.is_floating_point()
     ]
 
 
@@ -82,25 +78,20 @@ def _assert_right_padded_sequence_matches_inputs(
     max_last_dimension_length: int,
     fill_value: float,
 ) -> None:
-    assert len(padded_tensors) == len(list_tensors), (
-        f"pad_sequence returned {len(padded_tensors)} tensors, expected {len(list_tensors)}."
-    )
+    assert len(padded_tensors) == len(list_tensors), f"pad_sequence returned {len(padded_tensors)} tensors, expected {len(list_tensors)}."
 
     for tensor_index, (tensor_value, padded_tensor) in enumerate(zip(list_tensors, padded_tensors, strict=True)):
         expected_fill_value = fill_value if tensor_value.is_floating_point() else int(fill_value)
         expected_padding_width = max_last_dimension_length - tensor_value.shape[-1]
 
         assert padded_tensor.shape[-1] == max_last_dimension_length, (
-            f"pad_sequence wrong padded length for {tensor_index=}; got {padded_tensor.shape[-1]}, "
-            f"expected {max_last_dimension_length}."
+            f"pad_sequence wrong padded length for {tensor_index=}; got {padded_tensor.shape[-1]}, expected {max_last_dimension_length}."
         )
 
         center_slice = padded_tensor.narrow(-1, 0, tensor_value.shape[-1])
         right_padding_slice = padded_tensor.narrow(-1, tensor_value.shape[-1], expected_padding_width)
 
-        assert torch.equal(center_slice, tensor_value), (
-            f"pad_sequence changed right-padded center values for {tensor_index=}."
-        )
+        assert torch.equal(center_slice, tensor_value), f"pad_sequence changed right-padded center values for {tensor_index=}."
         assert torch.all(right_padding_slice == expected_fill_value), (
             f"pad_sequence generated incorrect right padding values for {tensor_index=}."
         )
@@ -113,9 +104,7 @@ def _assert_left_padded_sequence_matches_inputs(
     max_last_dimension_length: int,
     fill_value: float,
 ) -> None:
-    assert len(padded_tensors) == len(list_tensors), (
-        f"pad_sequence returned {len(padded_tensors)} tensors, expected {len(list_tensors)}."
-    )
+    assert len(padded_tensors) == len(list_tensors), f"pad_sequence returned {len(padded_tensors)} tensors, expected {len(list_tensors)}."
 
     for tensor_index, (tensor_value, padded_tensor) in enumerate(zip(list_tensors, padded_tensors, strict=True)):
         expected_fill_value = fill_value if tensor_value.is_floating_point() else int(fill_value)
@@ -124,9 +113,7 @@ def _assert_left_padded_sequence_matches_inputs(
         center_slice = padded_tensor.narrow(-1, expected_padding_width, tensor_value.shape[-1])
         left_padding_slice = padded_tensor.narrow(-1, 0, expected_padding_width)
 
-        assert torch.equal(center_slice, tensor_value), (
-            f"pad_sequence changed left-padded center values for {tensor_index=}."
-        )
+        assert torch.equal(center_slice, tensor_value), f"pad_sequence changed left-padded center values for {tensor_index=}."
         assert torch.all(left_padding_slice == expected_fill_value), (
             f"pad_sequence generated incorrect left padding values for {tensor_index=}."
         )
@@ -211,9 +198,7 @@ def test_pad_left_at_dim(
             value=float(fill_value),
         )
 
-        assert torch.equal(result, expected), (
-            f"pad_left_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
-        )
+        assert torch.equal(result, expected), f"pad_left_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize("right_pad_width", [pytest.param(LEFT_PAD_WIDTH, id="right-padding-width-two")])
@@ -241,9 +226,7 @@ def test_pad_right_at_dim(
             value=float(fill_value),
         )
 
-        assert torch.equal(result, expected), (
-            f"pad_right_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
-        )
+        assert torch.equal(result, expected), f"pad_right_at_dim does not match pad_at_dim for {dimension_index=} and {tuple(t.shape)=}."
 
 
 @pytest.mark.parametrize("length_step", [pytest.param(LENGTH_STEP, id="length-step-three")])
@@ -496,9 +479,7 @@ def test_pad_sequence_and_cat(
     assert empty_result is None, "pad_sequence_and_cat must return None for empty input tensors."
 
     one_dimensional_float_tensors = [
-        tensor_value
-        for tensor_value in list_tensors
-        if tensor_value.ndim == 1 and tensor_value.is_floating_point()
+        tensor_value for tensor_value in list_tensors if tensor_value.ndim == 1 and tensor_value.is_floating_point()
     ]
     assert len(one_dimensional_float_tensors) > 1, "Need at least two one-dimensional float tensors for cat checks."
 

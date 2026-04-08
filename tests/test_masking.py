@@ -20,7 +20,7 @@ def test_lens_to_mask(t: Tensor) -> None:
     )
     assert inferred_mask.dtype == torch.bool, f"lens_to_mask returned dtype {inferred_mask.dtype}, expected torch.bool."
 
-    list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    list_lengths_vector: list[int] = lengths_vector.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     for tensor_index, length_value in enumerate(list_lengths_vector):
         row_mask = inferred_mask[tensor_index]
 
@@ -42,7 +42,7 @@ def test_lens_to_mask(t: Tensor) -> None:
         f"expected ({len(lengths_vector)}, {explicit_max_length})."
     )
 
-    list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    list_lengths_vector: list[int] = lengths_vector.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     for tensor_index, length_value in enumerate(list_lengths_vector):
         row_mask = explicit_mask[tensor_index]
 
@@ -93,10 +93,9 @@ def test_reduce_masks(
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 
-    list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    list_lengths_vector: list[int] = lengths_vector.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     mask_collection: list[Tensor] = [
-        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0)
-        for length_value in list_lengths_vector
+        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0) for length_value in list_lengths_vector
     ]
 
     empty_and_result = reduce_masks(empty_optional_tensor_sequence, torch.logical_and)
@@ -139,12 +138,8 @@ def test_reduce_masks(
 
         assert single_and_result is not None, f"reduce_masks returned None for single active logical_and mask at {mask_index=}."
         assert single_or_result is not None, f"reduce_masks returned None for single active logical_or mask at {mask_index=}."
-        assert torch.equal(single_and_result, mask_value), (
-            f"reduce_masks logical_and changed a single active mask at {mask_index=}."
-        )
-        assert torch.equal(single_or_result, mask_value), (
-            f"reduce_masks logical_or changed a single active mask at {mask_index=}."
-        )
+        assert torch.equal(single_and_result, mask_value), f"reduce_masks logical_and changed a single active mask at {mask_index=}."
+        assert torch.equal(single_or_result, mask_value), f"reduce_masks logical_or changed a single active mask at {mask_index=}."
 
 
 def test_and_masks(
@@ -156,10 +151,9 @@ def test_and_masks(
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 
-    list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    list_lengths_vector: list[int] = lengths_vector.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     mask_collection: list[Tensor] = [
-        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0)
-        for length_value in list_lengths_vector
+        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0) for length_value in list_lengths_vector
     ]
 
     empty_result = and_masks(empty_optional_tensor_sequence)
@@ -200,10 +194,9 @@ def test_or_masks(
     lengths_vector = torch.tensor([tensor_value.shape[-1] for tensor_value in list_tensors], dtype=torch.long)
     max_mask_length = int(lengths_vector.max().item()) + 4
 
-    list_lengths_vector: list[int] = lengths_vector.tolist() # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    list_lengths_vector: list[int] = lengths_vector.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     mask_collection: list[Tensor] = [
-        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0)
-        for length_value in list_lengths_vector
+        lens_to_mask(torch.tensor([int(length_value)]), max_len=max_mask_length).squeeze(0) for length_value in list_lengths_vector
     ]
 
     empty_result = or_masks(empty_optional_tensor_sequence)
