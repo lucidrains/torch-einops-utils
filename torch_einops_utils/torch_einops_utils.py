@@ -26,6 +26,7 @@ from torch import Tensor, is_tensor
 from torch.utils._pytree import PyTree, tree_flatten, tree_map, tree_unflatten
 
 from einops import pack, unpack
+# TODO Remove re-exports.
 from torch_einops_utils import (
     align_dims_left as align_dims_left,
     and_masks as and_masks,
@@ -211,7 +212,7 @@ def tree_map_tensor(fn: Callable[[Tensor], Tensor], tree: PyTree) -> PyTree:
     [3] tests.test_utils.test_tree_map_tensor
 
     [4] fast_weight_attention.chunk_manager.ChunkManager.forward
-
+        https://context7.com/lucidrains/fast-weight-attention
     """
 
     def func(t: Any) -> Any:  # noqa: ANN401
@@ -358,7 +359,7 @@ def pack_with_inverse(t: Tensor | list[Tensor], pattern: str) -> tuple[Tensor, C
     packed, packed_shape = pack(t, pattern)
 
     def inverse(out: Tensor, inv_pattern: str | None = None) -> Tensor | list[Tensor]:
-        unpack_pattern = default(inv_pattern, pattern)
+        unpack_pattern: str = default(inv_pattern, pattern)
         unpacked: list[Tensor] = unpack(out, packed_shape, unpack_pattern)
 
         if is_one:

@@ -1,25 +1,40 @@
 from __future__ import annotations
 
 import pickle
+from collections.abc import Callable, Mapping, Sequence
 from functools import wraps
 from pathlib import Path
+from typing import overload
 
 import torch
 from torch.nn import Module
 
-from torch_einops_utils import exists
+from torch_einops_utils import KVar, RVar, StrPath, TVar, exists
 
 from packaging import version as packaging_version
 
 
-def map_values(fn, v):
-    if isinstance(v, (list, tuple)):
-        return type(v)(map_values(fn, el) for el in v)
+@overload
+def map_values(fn: Callable[[TVar], RVar], v: list[TVar]) -> list[RVar]: ...
+@overload
+def map_values(fn: Callable[[TVar], RVar], v: tuple[TVar, ...]) -> tuple[RVar, ...]: ...
+@overload
+def map_values(fn: Callable[[TVar], RVar], v: dict[KVar, TVar]) -> Mapping[KVar, RVar]: ...
+@overload
+def map_values(fn: Callable[[TVar], RVar], v: TVar) -> RVar: ...
+def map_values(
+    fn: Callable[[TVar], RVar], v: TVar | list[TVar] | tuple[TVar, ...] | dict[KVar, TVar]
+) -> RVar | Sequence[RVar] | Mapping[KVar, RVar]:
+    if isinstance(v, list):
+        return [map_values(fn, el) for el in v]  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+
+    if isinstance(v, tuple):
+        return tuple(map_values(fn, el) for el in v)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
 
     if isinstance(v, dict):
-        v = {key: map_values(fn, val) for key, val in v.items()}
+        v = {key: map_values(fn, val) for key, val in v.items()}  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType, reportAssignmentType]
 
-    return fn(v)
+    return fn(v)  # pyright: ignore[reportArgumentType]
 
 
 def dehydrate_config(config, config_instance_var_name):
@@ -67,11 +82,11 @@ def save_load(
         _orig_init = klass.__init__
 
         @wraps(_orig_init)
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             setattr(self, config_instance_var_name, (args, kwargs))
             _orig_init(self, *args, **kwargs)
 
-        def _save(self, path, overwrite: bool = True) -> None:
+        def _save(self, path: StrPath, overwrite: bool = True) -> None:
             path = Path(path)
             if not overwrite and path.exists():
                 message: str = f"I received `{path = }`, but this path already exists and `overwrite` is `False`."
@@ -86,7 +101,7 @@ def save_load(
 
             torch.save(pkg, str(path))
 
-        def _load(self, path, strict: bool = True) -> None:
+        def _load(self, path: StrPath, strict: bool = True) -> None:
             path = Path(path)
             if not path.exists():
                 message: str = f"I could not find a file at `{path = }`."
@@ -103,7 +118,7 @@ def save_load(
         # looks for a `config` key in the stored checkpoint, instantiating the model as well as loading the state dict
 
         @classmethod
-        def _init_and_load_from(cls, path, strict: bool = True):
+        def _init_and_load_from(cls, path: StrPath, strict: bool = True):
             path = Path(path)
             if not path.exists():
                 message: str = f"I could not find a file at `{path = }`."

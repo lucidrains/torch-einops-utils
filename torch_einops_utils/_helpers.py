@@ -11,12 +11,11 @@ from torch_einops_utils import (
     IdentityCallable,
     PSpec,
     SupportsIntIndex,
-    T_co,
-    TVar
+    T_co
 )
 
 
-def compact(arr: Iterable[TVar | None]) -> list[TVar]:
+def compact(arr: Iterable[T_co | None]) -> list[T_co]:
     """Filter `None` values from `arr` and return the remaining elements as a `list`.
 
     You can use `compact` to remove all `None` values from an iterable, producing a typed `list` of
@@ -50,7 +49,7 @@ def compact(arr: Iterable[TVar | None]) -> list[TVar]:
     return [*filter(exists, arr)]
 
 
-def default(v: TVar | None, d: TVar) -> TVar:
+def default(v: T_co | None, d: T_co) -> T_co:
     """Return `v` when `v` is not `None`, or `d` when `v` is `None`.
 
     You can use `default` to supply a fallback value for optional parameters and accumulators.
@@ -104,7 +103,7 @@ def divisible_by(num: float, den: float) -> bool:
     return (den != 0) and ((num % den) == 0)
 
 
-def exists(v: TVar | None) -> TypeGuard[TVar]:
+def exists(v: T_co | None) -> TypeGuard[T_co]:
     """Test whether `v` is not `None`.
 
     You can use `exists` as a `None`-guard throughout this package. `exists` returns `True` for any
@@ -169,7 +168,7 @@ def first(arr: SupportsIntIndex[T_co]) -> T_co:
     return arr[0]
 
 
-def identity(t: TVar, *args: object, **kwargs: object) -> TVar:  # noqa: ARG001
+def identity(t: T_co, *args: object, **kwargs: object) -> T_co:  # noqa: ARG001
     """Return `t` unchanged, ignoring all other arguments.
 
     You can use `identity` as a no-op callable in contexts that require a function but no
@@ -204,12 +203,12 @@ def identity(t: TVar, *args: object, **kwargs: object) -> TVar:  # noqa: ARG001
 
 
 @overload
-def maybe(fn: Callable[Concatenate[DVar, PSpec], TVar]) -> Callable[Concatenate[DVar | None, PSpec], TVar | None]: ...
+def maybe(fn: Callable[Concatenate[DVar, PSpec], T_co]) -> Callable[Concatenate[DVar | None, PSpec], T_co | None]: ...
 @overload
 def maybe(fn: None) -> IdentityCallable: ...
 def maybe(
-    fn: Callable[Concatenate[DVar, PSpec], TVar] | None,
-) -> Callable[Concatenate[DVar | None, PSpec], TVar | None] | IdentityCallable:
+    fn: Callable[Concatenate[DVar, PSpec], T_co] | None,
+) -> Callable[Concatenate[DVar | None, PSpec], T_co | None] | IdentityCallable:
     """Wrap `fn` so that the wrapped function returns `None` when the first argument is `None`.
 
     You can use this function to conditionally apply `fn` without adding an explicit `if`/`else`
@@ -275,7 +274,7 @@ def maybe(
         return identity
 
     @wraps(fn)
-    def inner(t: DVar | None, *args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar | None:
+    def inner(t: DVar | None, *args: PSpec.args, **kwargs: PSpec.kwargs) -> T_co | None:
         if not exists(t):
             return None
 

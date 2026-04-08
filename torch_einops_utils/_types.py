@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-from typing import ParamSpec, Protocol, TypedDict, TypeVar
+from collections.abc import Hashable
+from os import PathLike
+from typing import ParamSpec, Protocol, TypeAlias, TypedDict, TypeVar
 
 from torch.nn import Module
 
 DVar = TypeVar("DVar")
+KVar = TypeVar("KVar", bound=Hashable)
 TVar = TypeVar("TVar")
+RVar = TypeVar("RVar")
 T_co = TypeVar("T_co", covariant=True)
 TypeModule = TypeVar("TypeModule", bound=Module)
 
 PSpec = ParamSpec("PSpec")
+
+StrPath: TypeAlias = str | PathLike[str]
 
 
 class DimAndValue(TypedDict, total=False):

@@ -27,7 +27,7 @@ from torch import Tensor, device
 from torch.nn import Module
 from torch.types import Device
 
-from torch_einops_utils import PSpec, TVar, TypeModule, exists, tree_map_tensor
+from torch_einops_utils import PSpec, T_co, TypeModule, exists, tree_map_tensor
 
 
 def module_device(m: Module) -> device | None:
@@ -93,7 +93,7 @@ def module_device(m: Module) -> device | None:
     return first_param_or_buffer.device
 
 
-def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, TVar]], Callable[PSpec, TVar]]:
+def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, T_co]], Callable[PSpec, T_co]]:
     """Create a decorator that moves all tensor arguments to a target device before each call.
 
     You can use this function to wrap a callable so that every `torch.Tensor` [1] in the positional
@@ -158,9 +158,9 @@ def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, TVar]], C
 
     """
 
-    def decorator(fn: Callable[PSpec, TVar]) -> Callable[PSpec, TVar]:
+    def decorator(fn: Callable[PSpec, T_co]) -> Callable[PSpec, T_co]:
         @wraps(fn)
-        def inner(*args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar:
+        def inner(*args: PSpec.args, **kwargs: PSpec.kwargs) -> T_co:
             args, kwargs = tree_map_tensor(lambda t: t.to(device), (args, kwargs))
 
             return fn(*args, **kwargs)
@@ -171,8 +171,8 @@ def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, TVar]], C
 
 
 def move_inputs_to_module_device(
-    fn: Callable[Concatenate[TypeModule, PSpec], TVar],
-) -> Callable[Concatenate[TypeModule, PSpec], TVar]:
+    fn: Callable[Concatenate[TypeModule, PSpec], T_co],
+) -> Callable[Concatenate[TypeModule, PSpec], T_co]:
     """Create a decorator that moves all tensor arguments to the device of the module.
 
     You can use this function as a decorator on methods of `torch.nn.Module` subclasses [1] to
@@ -256,7 +256,7 @@ def move_inputs_to_module_device(
     """
 
     @wraps(fn)
-    def inner(self: TypeModule, *args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar:
+    def inner(self: TypeModule, *args: PSpec.args, **kwargs: PSpec.kwargs) -> T_co:
         device: device | None = module_device(self)
 
         if exists(device):
