@@ -31,24 +31,24 @@ from torch.types import Device
 
 from torch_einops_utils import tree_map_tensor
 
-T_co = TypeVar("T_co", covariant=True)
+TVar = TypeVar("TVar")
 TorchNNModule = TypeVar("TorchNNModule", bound=Module)
 
 PSpec = ParamSpec("PSpec")
 
 # helpers
 
-def exists(v: T_co | None) -> TypeGuard[T_co]:
+def exists(v: TVar | None) -> TypeGuard[TVar]:
     """Test whether `v` is not `None`.
 
     You can use `exists` as a `None`-guard throughout this package. `exists` returns `True` for any
     value that is not `None`, including falsy values such as `0`, `False`, and empty collections. The
-    return type is annotated as `TypeGuard[T_co]` [1] so that static analyzers narrow the type of `v`
-    to `T_co` in branches guarded by `exists`.
+    return type is annotated as `TypeGuard[TVar]` [1] so that static analyzers narrow the type of `v`
+    to `TVar` in branches guarded by `exists`.
 
     Parameters
     ----------
-    v : T_co | None
+    v : TVar | None
         The value to test.
 
     Returns
@@ -63,19 +63,18 @@ def exists(v: T_co | None) -> TypeGuard[T_co]:
 
     Examples
     --------
-    From `torch_einops_utils._masking.lens_to_mask` [2], guarding optional parameter `max_len` before
-    use:
+    From `torch_einops_utils.lens_to_mask` [2], guarding optional parameter `max_len` before use:
 
         ```python
         if not exists(max_len):
-            max_len = int(lens.amax().item())
+            max_len = lens.amax().item()
         ```
 
     References
     ----------
     [1] TypeGuard - Python typing documentation
         https://docs.python.org/3/library/typing.html#typing.TypeGuard
-    [2] torch_einops_utils._masking.lens_to_mask
+    [2] torch_einops_utils.lens_to_mask
     """
     return v is not None
 
@@ -153,7 +152,7 @@ def module_device(m: Module) -> device | None:
         https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.register_buffer
     [5] itertools.chain - Python documentation
         https://docs.python.org/3/library/itertools.html#itertools.chain
-    [6] tests.test_device.test_module_device_returns_expected_device
+    [6] tests.test_device_part2.test_module_device_returns_expected_device
 
     """
     first_param_or_buffer: Tensor | None = next(chain(m.parameters(), m.buffers()), None)
@@ -164,7 +163,7 @@ def module_device(m: Module) -> device | None:
     return first_param_or_buffer.device
 
 
-def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, T_co]], Callable[PSpec, T_co]]:
+def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, TVar]], Callable[PSpec, TVar]]:
     """Create a Python decorator that moves all `Tensor` arguments to a target compute device before each call.
 
     You can use `move_inputs_to_device` to wrap a callable so that every `Tensor` in its positional
@@ -189,7 +188,7 @@ def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, T_co]], C
 
     Returns
     -------
-    decorator : Callable[[Callable[PSpec, T_co]], Callable[PSpec, T_co]]
+    decorator : Callable[[Callable[PSpec, TVar]], Callable[PSpec, TVar]]
         A Python decorator that wraps the given callable, moving its `Tensor` arguments to the
         compute device identified by `device` before each call while preserving the original
         callable's signature.
@@ -231,19 +230,19 @@ def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, T_co]], C
     ----------
     [1] torch.Tensor - PyTorch documentation
         https://pytorch.org/docs/stable/tensors.html
-    [2] torch_einops_utils.torch_einops_utils.tree_map_tensor
+    [2] torch_einops_utils.tree_map_tensor
 
     [3] torch.types.Device - PyTorch documentation
         https://pytorch.org/docs/stable/tensor_attributes.html
     [4] torch.Tensor.to - PyTorch documentation
         https://pytorch.org/docs/stable/generated/torch.Tensor.to.html
-    [5] tests.test_device.test_move_inputs_to_device_moves_tensor_arguments_in_nested_structures
+    [5] tests.test_device_part2.test_move_inputs_to_device_moves_tensor_arguments_in_nested_structures
 
     """
 
-    def decorator(fn: Callable[PSpec, T_co]) -> Callable[PSpec, T_co]:
+    def decorator(fn: Callable[PSpec, TVar]) -> Callable[PSpec, TVar]:
         @wraps(fn)
-        def inner(*args: PSpec.args, **kwargs: PSpec.kwargs) -> T_co:
+        def inner(*args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar:
             args, kwargs = tree_map_tensor(lambda t: t.to(device), (args, kwargs))
 
             return fn(*args, **kwargs)
@@ -253,7 +252,7 @@ def move_inputs_to_device(device: Device) -> Callable[[Callable[PSpec, T_co]], C
     return decorator
 
 
-def move_inputs_to_module_device(fn: Callable[Concatenate[TorchNNModule, PSpec], T_co]) -> Callable[Concatenate[TorchNNModule, PSpec], T_co]:
+def move_inputs_to_module_device(fn: Callable[Concatenate[TorchNNModule, PSpec], TVar]) -> Callable[Concatenate[TorchNNModule, PSpec], TVar]:
     """Wrap a callable so that all `Tensor` arguments are moved to the `torch.device` of the first `torch.nn.Module` argument before each call.
 
     You can use `move_inputs_to_module_device` as a Python decorator on methods of `torch.nn.Module`
@@ -276,13 +275,13 @@ def move_inputs_to_module_device(fn: Callable[Concatenate[TorchNNModule, PSpec],
 
     Parameters
     ----------
-    fn : Callable[Concatenate[TorchNNModule, PSpec], T_co]
+    fn : Callable[Concatenate[TorchNNModule, PSpec], TVar]
         The callable to wrap. The first positional argument must be a `torch.nn.Module` instance
         whose `torch.device` is used as the routing target.
 
     Returns
     -------
-    wrappedMethod : Callable[Concatenate[TorchNNModule, PSpec], T_co]
+    wrappedMethod : Callable[Concatenate[TorchNNModule, PSpec], TVar]
         The wrapped callable with the same signature as `fn`, where all `Tensor` arguments after the
         first `torch.nn.Module` argument are moved to the `torch.device` of that instance before each
         call.
@@ -337,18 +336,18 @@ def move_inputs_to_module_device(fn: Callable[Concatenate[TorchNNModule, PSpec],
         https://pytorch.org/docs/stable/generated/torch.nn.Module.html
     [2] torch_einops_utils.device.module_device
 
-    [3] torch_einops_utils.torch_einops_utils.tree_map_tensor
+    [3] torch_einops_utils.tree_map_tensor
 
     [4] typing.Concatenate - Python documentation
         https://docs.python.org/3/library/typing.html#typing.Concatenate
-    [5] tests.test_device._echo_module_with_parameter
+    [5] tests.test_device_part2._echo_module_with_parameter
 
     [6] metacontroller.metacontroller.policy_loss
         https://context7.com/lucidrains/metacontroller
     """
 
     @wraps(fn)
-    def inner(self: TorchNNModule, *args: PSpec.args, **kwargs: PSpec.kwargs) -> T_co:
+    def inner(self: TorchNNModule, *args: PSpec.args, **kwargs: PSpec.kwargs) -> TVar:
         device: device | None = module_device(self)
 
         if exists(device):
