@@ -43,15 +43,11 @@ def maybe(fn):
 def safe(fn):
     @wraps(fn)
     def inner(tensors, *args, **kwargs):
-        tensors = compact(tensors)
+        safe_tensors = compact(tensors)
 
-        if len(tensors) == 0:
+        if len(safe_tensors) == 0:
             return None
-
-        if len(tensors) == 1:
-            return tensors[0]
-
-        return fn(tensors, *args, **kwargs)
+        return fn(safe_tensors, *args, **kwargs)
 
     return inner
 
@@ -93,7 +89,9 @@ def shape_with_replace(
     shape_list = list(shape)
 
     for index, value in replace_dict.items():
-        assert index < len(shape_list)
+        if index >= len(shape_list):
+            message: str = f"I received `{index = }`, but I need `index` to be less than `{len(shape_list) = }`."
+            raise ValueError(message)
         shape_list[index] = value
 
     return torch.Size(shape_list)
@@ -126,7 +124,9 @@ def slice_right_at_dim(t, length, dim = -1):
 def pad_ndim(t, ndims: tuple[int, int]):
     shape = t.shape
     left, right = ndims
-    assert left >= 0 and right >= 0
+    if left < 0 or right < 0:
+        message: str = f"I received `{left = }` and `{right = }`, but I need both values to be greater than or equal to `0`."
+        raise ValueError(message)
 
     ones = (1,)
     ones_left = ones * left
@@ -163,12 +163,8 @@ def align_dims_left(
 
 # cat and stack
 
+@safe
 def safe_stack(tensors, dim = 0):
-    tensors = compact(tensors)
-
-    if len(tensors) == 0:
-        return None
-
     return stack(tensors, dim = dim)
 
 @safe
@@ -211,7 +207,7 @@ def pad_at_dim(
     dim = -1,
     value = 0.
 ):
-    dims_from_right = (- dim - 1) if dim < 0 else (t.ndim - dim - 1)
+    dims_from_right = ((-1 * dim) - 1 + t.ndim) % t.ndim
     zeros = ((0, 0) * dims_from_right)
     return F.pad(t, (*zeros, *pad), value = value)
 
@@ -253,11 +249,11 @@ def pad_sequence(
 
     device = first(tensors).device
 
-    lens = tensor([t.shape[dim] for t in tensors], device = device)
-    max_len = lens.amax().item()
+    lens = [t.shape[dim] for t in tensors]
+    max_len = max(lens)
 
     pad_fn = pad_left_at_dim if left else pad_right_at_dim
-    padded_tensors = [pad_fn(t, max_len - t_len, dim = dim, value = value) for t, t_len in zip(tensors, lens)]
+    padded_tensors = [pad_fn(t, max_len - t_len, dim = dim, value = value) for t, t_len in zip(tensors, lens, strict=True)]
 
     output = padded_tensors
     if return_stacked:
@@ -265,6 +261,8 @@ def pad_sequence(
 
     if not return_lens:
         return output
+
+    lens = tensor(lens, device=device)
 
     if pad_lens:
         lens = max_len - lens
@@ -275,12 +273,15 @@ def pad_sequence_and_cat(
     tensors,
     *,
     dim_cat = 0,
-    **kwargs
+    dim = -1,
+    value = 0.,
+    left = False
 ):
-    assert 'return_stacked' not in kwargs
 
-    padded = pad_sequence(tensors, return_stacked = False, **kwargs)
-    return cat(padded, dim = dim_cat)
+    padded = pad_sequence(tensors, dim = dim, value = value, left = left, return_stacked = False, return_lens = False)
+    if padded is not None:
+        return cat(padded, dim = dim_cat)
+    return padded
 
 # tree flatten with inverse
 
@@ -307,11 +308,11 @@ def pack_with_inverse(t, pattern):
 
     def inverse(out, inv_pattern = None):
         inv_pattern = default(inv_pattern, pattern)
-        out = unpack(out, packed_shape, inv_pattern)
+        unpacked = unpack(out, packed_shape, inv_pattern)
 
         if is_one:
-            out = first(out)
+            return first(unpacked)
 
-        return out
+        return unpacked
 
     return packed, inverse
