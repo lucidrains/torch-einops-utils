@@ -1968,8 +1968,12 @@ def tree_map_tensor(fn: Callable[[Tensor], Tensor], tree: PyTree) -> PyTree:
     [4] fast_weight_attention.chunk_manager.ChunkManager.forward
         https://context7.com/lucidrains/fast-weight-attention
     """
+    def func(t: object) -> object:
+        if is_tensor(t):
+            return fn(t)
+        return t
 
-    return tree_map(lambda t: fn(t) if is_tensor(t) else t, tree)
+    return tree_map(func, tree)
 
 def tree_flatten_with_inverse(tree: PyTree) -> tuple[list[Any], Callable[[Iterable[Any]], PyTree]]:
     """Flatten `tree` into a list of leaves and return a paired inverse function.
