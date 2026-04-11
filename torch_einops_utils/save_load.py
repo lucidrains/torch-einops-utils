@@ -56,7 +56,9 @@ def save_load(
     version: str | None = None
 ):
     def _save_load(klass):
-        assert issubclass(klass, Module), 'save_load should decorate a subclass of torch.nn.Module'
+        if not issubclass(klass, Module):
+            message: str = 'save_load should decorate a subclass of torch.nn.Module'
+            raise TypeError(message)
 
         _orig_init = klass.__init__
 
@@ -67,7 +69,9 @@ def save_load(
 
         def _save(self, path, overwrite = True):
             path = Path(path)
-            assert overwrite or not path.exists()
+            if not overwrite and path.exists():
+                message: str = f'I received `{path = }`, but the file already exists and `overwrite` is `False`.'
+                raise FileExistsError(message)
 
             config = getattr(self, config_instance_var_name)
             pkg = dict(
@@ -80,12 +84,15 @@ def save_load(
 
         def _load(self, path, strict = True):
             path = Path(path)
-            assert path.exists()
+            if not path.exists():
+                message: str = f'I received `{path = }`, but no file exists at that path.'
+                raise FileNotFoundError(message)
 
             pkg = torch.load(str(path), map_location = 'cpu')
 
             if exists(version) and exists(pkg['version']) and packaging_version.parse(version) != packaging_version.parse(pkg['version']):
-                print(f'loading saved model at version {pkg["version"]}, but current package version is {version}')
+                message: str = f'loading saved model at version {pkg["version"]}, but current package version is {version}'
+                print(message)
 
             self.load_state_dict(pkg['model'], strict = strict)
 
@@ -95,10 +102,14 @@ def save_load(
         @classmethod
         def _init_and_load_from(cls, path, strict = True):
             path = Path(path)
-            assert path.exists()
+            if not path.exists():
+                message: str = f'I received `{path = }`, but no file exists at that path.'
+                raise FileNotFoundError(message)
             pkg = torch.load(str(path), map_location = 'cpu')
 
-            assert 'config' in pkg, 'model configs were not found in this saved checkpoint'
+            if 'config' not in pkg:
+                message: str = 'model configs were not found in this saved checkpoint'
+                raise KeyError(message)
 
             config = pickle.loads(pkg['config'])
             args, kwargs = rehydrate_config(config)
