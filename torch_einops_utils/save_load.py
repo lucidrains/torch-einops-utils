@@ -57,7 +57,7 @@ def dehydrate_config(config: TVar, config_instance_var_name: str) -> TVar:
                 config = dehydrate_config(getattr(v, config_instance_var_name), config_instance_var_name)
             )
 
-        return v
+        return cast(TVar, v)
 
     return map_values(dehydrate, config)
 
