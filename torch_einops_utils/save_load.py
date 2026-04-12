@@ -140,7 +140,32 @@ def dehydrate_config(config: TVar, config_instance_var_name: str) -> TVar:
     @overload
     def dehydrate(v: TVar) -> TVar: ...
     def dehydrate(v: Module | TVar) -> DehydratedTorchNNModule | TVar:
-        # if the value is a save_load decorated module, convert it to its reconstruction metadata
+        """Convert a candidate value to a reconstruction record when it is a decorated module instance.
+
+        The function converts `v` to a `DehydratedTorchNNModule` [1] when `v` is a `torch.nn.Module`
+        [2] that carries the `config_instance_var_name` attribute written by `save_load` [3]. All
+        other values pass through unchanged.
+
+        Parameters
+        ----------
+        v : Module | TVar
+            The value to inspect and potentially convert.
+
+        Returns
+        -------
+        converted_value : DehydratedTorchNNModule | TVar
+            A reconstruction record when `v` is a decorated module instance, or `v` unchanged for all
+            other values.
+
+        References
+        ----------
+        [1] torch_einops_utils.DehydratedTorchNNModule
+
+        [2] torch.nn.Module - PyTorch documentation
+            https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+
+        [3] torch_einops_utils.save_load.save_load
+        """
         if isinstance(v, Module) and hasattr(v, config_instance_var_name):
             return DehydratedTorchNNModule(
                 __save_load_module__ = True,
@@ -223,7 +248,29 @@ def rehydrate_config(config: ConfigArgsKwargs) -> ConfigArgsKwargs:
     @overload
     def rehydrate(v: DehydratedTorchNNModule) -> Module: ...
     def rehydrate(v: DehydratedTorchNNModule | ConfigArgsKwargs) -> Module | ConfigArgsKwargs:
-        # if the value is reconstruction metadata, instantiate the module using its class and configuration
+        """Instantiate a module from its reconstruction record when the value carries the `__save_load_module__` marker.
+
+        The function calls `klass(*args, **kwargs)` to rebuild the module when `v` is a
+        `DehydratedTorchNNModule` [1] dictionary. All other values pass through unchanged.
+
+        Parameters
+        ----------
+        v : DehydratedTorchNNModule | ConfigArgsKwargs
+            The value to inspect and potentially reconstruct as a module.
+
+        Returns
+        -------
+        reconstructed : Module | ConfigArgsKwargs
+            A newly instantiated `torch.nn.Module` [2] when `v` is a reconstruction record, or `v`
+            unchanged for all other values.
+
+        References
+        ----------
+        [1] torch_einops_utils.DehydratedTorchNNModule
+
+        [2] torch.nn.Module - PyTorch documentation
+            https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+        """
         if isinstance(v, dict) and v.get('__save_load_module__', False):
             klass = v['klass']
             args, kwargs = v['config']
@@ -387,6 +434,37 @@ def save_load(
             _orig_init(self, *args, **kwargs)
 
         def _save(self: TorchNNModule, path: StrPath, overwrite: bool = True) -> None:
+            """Save the current model state and constructor configuration to a checkpoint file.
+
+            You can use this method to persist a decorated module instance. The method dehydrates
+            constructor configuration via `dehydrate_config` [1], packs it with the current state
+            dict and the version string captured at decoration time, and writes the bundle via
+            `torch.save` [2].
+
+            Parameters
+            ----------
+            path : StrPath
+                The filesystem path to write the checkpoint to.
+            overwrite : bool = True
+                When `False`, raise `FileExistsError` if a file already exists at `path`. When
+                `True`, an existing file at `path` is silently replaced.
+
+            Returns
+            -------
+            None
+
+            Raises
+            ------
+            FileExistsError
+                Raised when `overwrite` is `False` and a file already exists at `path`.
+
+            References
+            ----------
+            [1] torch_einops_utils.save_load.dehydrate_config
+
+            [2] torch.save - PyTorch documentation
+                https://pytorch.org/docs/stable/generated/torch.save.html
+            """
             path = Path(path)
             if not overwrite and path.exists():
                 message: str = f'I received `{path = }`, but the file already exists and `overwrite` is `False`.'
@@ -402,6 +480,45 @@ def save_load(
             torch.save(pkg, str(path))
 
         def _load(self: TorchNNModule, path: StrPath | Path, strict: bool = True) -> None:
+            """Restore model state from a checkpoint file.
+
+            You can use this method to load parameter values into an already-constructed decorated
+            module instance. The method reads the checkpoint via `torch.load` [1] on CPU, emits a
+            `UserWarning` when the stored version and the decoration-time version both exist and
+            differ under `packaging.version.parse` [2], and then restores parameter values via
+            `load_state_dict`.
+
+            Parameters
+            ----------
+            path : StrPath | Path
+                The filesystem path to read the checkpoint from.
+            strict : bool = True
+                Forwarded to `load_state_dict`. When `True`, the key sets of the checkpoint and the
+                current model must match exactly.
+
+            Returns
+            -------
+            None
+
+            Raises
+            ------
+            FileNotFoundError
+                Raised when no file exists at `path`.
+
+            Warns
+            -----
+            UserWarning
+                Emitted when the checkpoint's stored version and the decoration-time version both
+                exist and differ under `packaging.version.parse` [2].
+
+            References
+            ----------
+            [1] torch.load - PyTorch documentation
+                https://pytorch.org/docs/stable/generated/torch.load.html
+
+            [2] packaging.version - packaging documentation
+                https://packaging.pypa.io/en/stable/version.html
+            """
             path = Path(path)
             if not path.exists():
                 message: str = f'I received `{path = }`, but no file exists at that path.'
@@ -415,11 +532,39 @@ def save_load(
 
             self.load_state_dict(pkg['model'], strict = strict)
 
-        # init and load from
-        # looks for a `config` key in the stored checkpoint, instantiating the model as well as loading the state dict
-
         @classmethod
         def _init_and_load_from(cls: type[TorchNNModule], path: StrPath | Path, strict: bool = True) -> TorchNNModule:
+            """Construct a new instance of the decorated class and restore its state from a checkpoint file.
+
+            You can use this classmethod to reconstruct a model that was previously saved with the
+            corresponding save method. The classmethod reads the checkpoint, unpickles the `config`
+            entry, rebuilds the module graph via `rehydrate_config` [1], and then restores parameter
+            values from the same checkpoint.
+
+            Parameters
+            ----------
+            path : StrPath | Path
+                The filesystem path to read the checkpoint from.
+            strict : bool = True
+                Forwarded to `load_state_dict`. When `True`, the key sets of the checkpoint and the
+                reconstructed model must match exactly.
+
+            Returns
+            -------
+            model : TorchNNModule
+                A newly instantiated and state-restored instance of the decorated class.
+
+            Raises
+            ------
+            FileNotFoundError
+                Raised when no file exists at `path`.
+            KeyError
+                Raised when the checkpoint does not contain a `config` entry.
+
+            References
+            ----------
+            [1] torch_einops_utils.save_load.rehydrate_config
+            """
             path = Path(path)
             if not path.exists():
                 message: str = f'I received `{path = }`, but no file exists at that path.'
