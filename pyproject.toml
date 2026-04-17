@@ -52,6 +52,14 @@ build-backend = "hatchling.build"
 managed = true
 dev-dependencies = []
 
+[tool.hatch.build]
+include = [
+  "torch_einops_utils",
+  "tests",
+  "LICENSE",
+  "README.md",
+]
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
