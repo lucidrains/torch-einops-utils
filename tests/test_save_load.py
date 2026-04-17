@@ -125,3 +125,17 @@ def test_sophisticated_nested_save_load():
  
     if path.exists():
         os.remove(path)
+
+def test_save_load_without_parens():
+
+    @save_load
+    class SimpleNet(nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.linear = nn.Linear(dim, 1)
+
+    model = SimpleNet(10)
+    model.save('./simple.pt')
+    reloaded_model = SimpleNet.init_and_load('./simple.pt')
+
+    assert torch.allclose(reloaded_model.linear.weight, model.linear.weight)
