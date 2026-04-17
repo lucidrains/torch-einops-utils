@@ -49,6 +49,8 @@ def rehydrate_config(config):
     return map_values(rehydrate, config)
 
 def save_load(
+    maybe_fn = None,
+    *,
     save_method_name = 'save',
     load_method_name = 'load',
     config_instance_var_name = '_config',
@@ -115,5 +117,10 @@ def save_load(
         setattr(klass, init_and_load_classmethod_name, _init_and_load_from)
 
         return klass
+
+    # if already decorating a function then just return
+
+    if exists(maybe_fn):
+        return _save_load(maybe_fn)
 
     return _save_load
