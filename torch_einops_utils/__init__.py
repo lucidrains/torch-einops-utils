@@ -29,7 +29,7 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
-    slice_at_dim
+    exclusive_cumsum
 )
 
 from torch_einops_utils.torch_einops_utils import (
