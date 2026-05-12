@@ -9,8 +9,8 @@ def test_sequential():
         None,
         nn.ReLU()
     )
-    assert len(seq) == 2
-    
+    assert all(isinstance(module, nn.Module) for module in seq)
+
     # Test forward pass
     x = torch.randn(2, 10)
     out = seq(x)

@@ -1,20 +1,24 @@
 from __future__ import annotations
-from typing import Callable
+from collections.abc import Callable
+from typing import Generic, TypeVar
+from typing_extensions import ParamSpec
 
-from torch.nn import Module, Sequential as PyTorchSequential
-from torch_einops_utils.torch_einops_utils import exists
+from torch import nn
+from torch_einops_utils.torch_einops_utils import compact, identity
 
-def Sequential(*modules):
-    return PyTorchSequential(*filter(exists, modules))
+PSpec = ParamSpec("PSpec")
+RVar = TypeVar("RVar")
 
-class Identity(Module):
-    def forward(self, t, *args, **kwargs):
-        return t
+def Sequential(*modules: nn.Module | None) -> nn.Sequential:
+    return nn.Sequential(*compact(modules))
 
-class Lambda(Module):
-    def __init__(self, fn: Callable):
+class Identity(nn.Module):
+    forward = staticmethod(identity)
+
+class Lambda(nn.Module, Generic[PSpec, RVar]):
+    def __init__(self, fn: Callable[PSpec, RVar]) -> None:
         super().__init__()
-        self.fn = fn
+        self.fn: Callable[PSpec, RVar] = fn
 
-    def forward(self, t, *args, **kwargs):
-        return self.fn(t, *args, **kwargs)
+    def forward(self, *args: PSpec.args, **kwargs: PSpec.kwargs) -> RVar:
+        return self.fn(*args, **kwargs)
