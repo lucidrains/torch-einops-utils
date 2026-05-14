@@ -161,8 +161,8 @@ def masked_mean(
 
     mask = pad_right_ndim(mask, max(0, t.ndim - mask.ndim)).expand_as(t)
 
-    num: Tensor = (t * mask).sum(dim=dim, keepdim=keepdim)
-    den: Tensor = mask.sum(dim=dim, keepdim=keepdim)
+    num: torch.Tensor = (t * mask).sum(dim=dim, keepdim=keepdim)
+    den: torch.Tensor = mask.sum(dim=dim, keepdim=keepdim)
 
     return num / den.clamp(min=eps)
 
