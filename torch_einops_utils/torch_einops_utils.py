@@ -87,6 +87,9 @@ def masked_mean(
 def exclusive_cumsum(t, dim = -1):
     return t.cumsum(dim = dim) - t
 
+def reverse_cumsum(t, dim = -1):
+    return t.sum(dim = dim, keepdim = True) - t.cumsum(dim = dim) + t
+
 # shapes
 
 def shape_with_replace(
@@ -210,6 +213,18 @@ def and_masks(masks):
 def or_masks(masks):
     return reduce_masks(masks, torch.logical_or)
 
+def mask_after(t, value, dim = -1, inclusive = True):
+    mask = t == value
+    if inclusive:
+        mask = shift_right(mask, amount = 1, dim = dim, pad_value = False)
+    return mask.float().cumsum(dim = dim) == 0.
+
+def mask_before(t, value, dim = -1, inclusive = True):
+    mask = t == value
+    if inclusive:
+        mask = shift_left(mask, amount = 1, dim = dim, pad_value = False)
+    return reverse_cumsum(mask.float(), dim = dim) == 0.
+
 # padding
 
 def pad_at_dim(
@@ -242,6 +257,17 @@ def pad_right_at_dim_to(t, length: int, dim = -1, **kwargs):
         return t
 
     return pad_right_at_dim(t, length - curr_len, dim = dim, **kwargs)
+
+# shifting
+
+def shift(t, amount = 1, dim = -1, pad_value = 0.):
+    return pad_at_dim(t, (amount, -amount), dim = dim, value = pad_value)
+
+def shift_right(t, amount = 1, dim = -1, pad_value = 0.):
+    return shift(t, amount, dim = dim, pad_value = pad_value)
+
+def shift_left(t, amount = 1, dim = -1, pad_value = 0.):
+    return shift(t, -amount, dim = dim, pad_value = pad_value)
 
 # better pad sequence
 

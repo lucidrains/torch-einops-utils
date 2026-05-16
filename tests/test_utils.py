@@ -30,7 +30,12 @@ from torch_einops_utils.torch_einops_utils import (
     slice_left_at_dim,
     slice_right_at_dim,
     safe_stack,
-    safe_cat
+    safe_cat,
+    mask_after,
+    mask_before,
+    shift_right,
+    shift_left,
+    reverse_cumsum
 )
 
 def test_exist():
@@ -250,3 +255,58 @@ def test_safe_functions():
     assert (safe_cat([t1]) == t1).all()
     assert (safe_cat([t1, None]) == t1).all()
     assert safe_cat([t1, t2]).shape == (4, 3)
+
+def test_mask_after_before():
+    t = tensor([[1, 2, 3, 4, 5], [1, 3, 2, 3, 5]])
+
+    assert mask_after(t, 3).tolist() == [
+        [True, True, True, False, False],
+        [True, True, False, False, False]
+    ]
+
+    assert mask_after(t, 3, inclusive = False).tolist() == [
+        [True, True, False, False, False],
+        [True, False, False, False, False]
+    ]
+
+    assert mask_before(t, 3).tolist() == [
+        [False, False, True, True, True],
+        [False, False, False, True, True]
+    ]
+
+    assert mask_before(t, 3, inclusive = False).tolist() == [
+        [False, False, False, True, True],
+        [False, False, False, False, True]
+    ]
+
+    assert mask_after(t.T, 3, dim = 0).tolist() == mask_after(t, 3).T.tolist()
+    assert mask_before(t.T, 3, dim = 0).tolist() == mask_before(t, 3).T.tolist()
+
+def test_eos_id_masking():
+    seq = tensor([
+        [1, 4, 5, 2, 0, 0],
+        [1, 6, 2, 0, 0, 0],
+        [1, 7, 8, 9, 2, 0]
+    ])
+
+    assert mask_after(seq, 2).tolist() == [
+        [True, True, True, True, False, False],
+        [True, True, True, False, False, False],
+        [True, True, True, True, True, False]
+    ]
+
+    assert mask_after(seq, 2, inclusive = False).tolist() == [
+        [True, True, True, False, False, False],
+        [True, True, False, False, False, False],
+        [True, True, True, True, False, False]
+    ]
+
+def test_shift():
+    t = tensor([1, 2, 3])
+    assert shift_right(t).tolist() == [0, 1, 2]
+    assert shift_left(t).tolist() == [2, 3, 0]
+    assert shift_right(t, pad_value = -1).tolist() == [-1, 1, 2]
+
+def test_reverse_cumsum():
+    t = tensor([1, 2, 3])
+    assert reverse_cumsum(t).tolist() == [6, 5, 3]

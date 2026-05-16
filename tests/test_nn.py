@@ -10,7 +10,7 @@ def test_sequential():
         nn.ReLU()
     )
     assert len(seq) == 2
-    
+
     # Test forward pass
     x = torch.randn(2, 10)
     out = seq(x)
