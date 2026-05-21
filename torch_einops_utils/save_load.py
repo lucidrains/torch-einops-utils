@@ -1,3 +1,21 @@
+"""Decorate `torch.nn.Module` subclasses with checkpoint save, load, and reconstruct methods.
+
+You can use this module to equip any `torch.nn.Module` subclass with methods that persist a
+checkpoint to disk, restore parameter values into an existing instance, and reconstruct a new
+instance from a checkpoint without hand-written reconstruction code. The module also exposes the
+companion functions that serialize nested decorated modules into checkpoint-safe records and
+deserialize those records back to live instances.
+
+Contents
+--------
+Functions
+    dehydrate_config
+        Convert nested decorated modules in a configuration value into reconstruction records.
+    rehydrate_config
+        Reconstruct nested decorated modules from checkpoint configuration records.
+    save_load
+        Decorate a `torch.nn.Module` subclass with checkpoint save, load, and reconstruct helpers.
+"""
 from __future__ import annotations
 from pathlib import Path
 from packaging import version as packaging_version
@@ -7,13 +25,69 @@ from functools import wraps
 
 import torch
 from torch.nn import Module
+from torch import Tensor
+
+from collections.abc import Callable
+from os import PathLike
+from typing import Any, Literal, TypeAlias, TypedDict, TypeGuard, TypeVar, cast, overload
+
+TorchNNModule = TypeVar('TorchNNModule', bound=Module)
+TVar = TypeVar('TVar')
+StrPath: TypeAlias = str | PathLike[str]
+
+ConfigArgsKwargs: TypeAlias = tuple[tuple[Any, ...], dict[Any, Any]]
+
+class DehydratedTorchNNModule(TypedDict):
+    __save_load_module__: Literal[True]
+    klass: type[Module]
+    config: ConfigArgsKwargs
+
+class DehydratedCheckpoint(TypedDict):
+    model: dict[str, Tensor]
+    config: bytes
+    version: str | None
 
 # helpers
 
-def exists(v):
+def exists(v: TVar | None) -> TypeGuard[TVar]:
     return v is not None
 
-def map_values(fn, v):
+def map_values(fn: Callable[[TVar], TVar], v: TVar) -> TVar:
+    """Apply `fn` to every leaf value in a nested `list`, `tuple`, or `dict` structure.
+
+    You can use `map_values` to transform the leaf values of an arbitrarily nested container without
+    changing its shape. `map_values` recurses into `list` and `tuple` elements and into `dict`
+    values, reassembling each container using its original type. Any value that is not a `list`,
+    `tuple`, or `dict` is treated as a leaf and passed directly to `fn`. `dehydrate_config` [1] and
+    `rehydrate_config` [2] both use `map_values` to traverse nested checkpoint configuration
+    structures.
+
+    Parameters
+    ----------
+    fn : Callable[[TVar], TVar]
+        The function to apply to each leaf value. `fn` receives each non-container value and must
+        return a value of the same type.
+    v : TVar
+        The value to transform. May be a `list`, `tuple`, `dict`, or any leaf value.
+
+    Returns
+    -------
+    transformed : TVar
+        The input structure with all leaf values replaced by the results of `fn`.
+
+    See Also
+    --------
+    dehydrate_config : Serialize nested `Module` instances using `map_values`.
+    rehydrate_config : Reconstruct nested `Module` instances using `map_values`.
+
+    References
+    ----------
+    [1] torch_einops_utils.save_load.dehydrate_config
+
+    [2] torch_einops_utils.save_load.rehydrate_config
+
+    [3] tests.test_helpers.test_map_values_transforms_structure
+    """
     if isinstance(v, (list, tuple)):
         return type(v)(map_values(fn, el) for el in v)
 
@@ -22,29 +96,205 @@ def map_values(fn, v):
 
     return fn(v)
 
-def dehydrate_config(config, config_instance_var_name):
-    def dehydrate(v):
-        # if the value is a save_load decorated module, convert it to its reconstruction metadata
+def dehydrate_config(config: TVar, config_instance_var_name: str) -> TVar:
+    """Convert nested decorated modules in `config` into reconstruction records.
+
+    You can use `dehydrate_config` to replace each nested `torch.nn.Module` [1] in `config` that
+    carries `config_instance_var_name` with a dictionary containing the module `class` and recorded
+    constructor configuration. `dehydrate_config` preserves the surrounding `tuple`, `list`, and
+    `dict` structure by delegating traversal to `map_values` [2]. The `save_load` decorator [3] uses
+    `dehydrate_config` before serializing checkpoint configuration payloads.
+
+    Parameters
+    ----------
+    config : TVar
+        The constructor configuration to transform. `config` may contain plain Python values, nested
+        containers, and decorated module instances.
+    config_instance_var_name : str
+        The attribute name that stores constructor arguments on each decorated module instance.
+
+    Returns
+    -------
+    dehydrated_config : TVar
+        A value with the same container structure as `config`, where each decorated module instance
+        has been replaced by a reconstruction record.
+
+    See Also
+    --------
+    rehydrate_config : Reconstruct module instances from dehydrated configuration records.
+    save_load : Decorate a module class so constructor configuration can be dehydrated and restored.
+
+    torch
+    -----
+    Only module instances that have an attribute named `config_instance_var_name` are converted.
+    `save_load` [3] writes that attribute when the decorated `torch.nn.Module` [1] subclass records
+    its constructor arguments. Undecorated module instances remain unchanged.
+
+    Examples
+    --------
+    From `tests.test_save_load_extended.test_dehydrate_config_respects_config_instance_var_name` [4]:
+
+        ```python
+        from torch_einops_utils.save_load import dehydrate_config
+        from tests.test_save_load_extended import SaveLoadExtendedCustomNamedModel
+
+        custom_model = SaveLoadExtendedCustomNamedModel(13)
+        config_args_kwargs = ((custom_model,), {})
+        dehydrated_config = dehydrate_config(config_args_kwargs, 'stored_config')
+        ```
+
+    References
+    ----------
+    [1] torch.nn.Module - PyTorch documentation
+        https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+    [2] torch_einops_utils.save_load.map_values
+
+    [3] torch_einops_utils.save_load.save_load
+
+    [4] tests.test_save_load_extended.test_dehydrate_config_respects_config_instance_var_name
+    """
+    @overload
+    def dehydrate(v: Module) -> DehydratedTorchNNModule: ...
+    @overload
+    def dehydrate(v: TVar) -> TVar: ...
+    def dehydrate(v: Module | TVar) -> DehydratedTorchNNModule | TVar:
+        """Convert a candidate value to a reconstruction record when it is a decorated module instance.
+
+        The function converts `v` to a `DehydratedTorchNNModule` [1] when `v` is a `torch.nn.Module`
+        [2] that carries the `config_instance_var_name` attribute written by `save_load` [3]. All
+        other values pass through unchanged.
+
+        Parameters
+        ----------
+        v : Module | TVar
+            The value to inspect and potentially convert.
+
+        Returns
+        -------
+        converted_value : DehydratedTorchNNModule | TVar
+            A reconstruction record when `v` is a decorated module instance, or `v` unchanged for all
+            other values.
+
+        References
+        ----------
+        [1] torch_einops_utils.DehydratedTorchNNModule
+
+        [2] torch.nn.Module - PyTorch documentation
+            https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+
+        [3] torch_einops_utils.save_load.save_load
+        """
         if isinstance(v, Module) and hasattr(v, config_instance_var_name):
-            return dict(
+            return DehydratedTorchNNModule(
                 __save_load_module__ = True,
                 klass = v.__class__,
                 config = dehydrate_config(getattr(v, config_instance_var_name), config_instance_var_name)
             )
 
-        return v
+        return cast(TVar, v)
 
     return map_values(dehydrate, config)
 
-def rehydrate_config(config):
-    def rehydrate(v):
-        # if the value is reconstruction metadata, instantiate the module using its class and configuration
+def rehydrate_config(config: ConfigArgsKwargs) -> ConfigArgsKwargs:
+    """Reconstruct nested decorated modules from checkpoint configuration records.
+
+    You can use `rehydrate_config` to replace each dictionary emitted by `dehydrate_config` [1] with
+    a fresh `torch.nn.Module` [2] instance. `rehydrate_config` preserves the surrounding `tuple`,
+    `list`, and `dict` structure by delegating traversal to `map_values` [3]. The classmethod
+    generated by `save_load` [4] uses `rehydrate_config` to rebuild constructor arguments before it
+    restores parameter values from the checkpoint.
+
+    Parameters
+    ----------
+    config : ConfigArgsKwargs
+        The dehydrated constructor configuration to transform.
+
+    Returns
+    -------
+    rehydrated_config : ConfigArgsKwargs
+        A configuration tuple whose module reconstruction records have been replaced by newly
+        instantiated module objects.
+
+    See Also
+    --------
+    dehydrate_config : Convert decorated module instances into reconstruction records.
+    save_load : Decorate a module class so constructor configuration can be rehydrated during load.
+
+    torch
+    -----
+    Each reconstruction record stores `klass` together with nested `(args, kwargs)` data.
+    `rehydrate_config` calls `klass(*args, **kwargs)` to rebuild the module graph. `rehydrate_config`
+    does not restore parameter tensors. The generated load method added by `save_load` [4] performs
+    that state restoration after construction.
+
+    Examples
+    --------
+    From `tests.test_save_load_extended` [5]:
+
+        ```python
+        from torch_einops_utils.save_load import rehydrate_config
+        from tests.test_save_load_extended import SaveLoadExtendedLinearModel
+
+        config_args_kwargs = (
+            (
+                {
+                    '__save_load_module__': True,
+                    'klass': SaveLoadExtendedLinearModel,
+                    'config': ((7, 11), {}),
+                },
+            ),
+            {'tag': 'manual-dehydrated-config'},
+        )
+
+        rehydrated_config = rehydrate_config(config_args_kwargs)
+        ```
+
+    References
+    ----------
+    [1] torch_einops_utils.save_load.dehydrate_config
+
+    [2] torch.nn.Module - PyTorch documentation
+        https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+    [3] torch_einops_utils.save_load.map_values
+
+    [4] torch_einops_utils.save_load.save_load
+
+    [5] tests.test_save_load_extended.test_rehydrate_config_instantiates_manual_dehydrated_modules
+    """
+    @overload
+    def rehydrate(v: ConfigArgsKwargs) -> ConfigArgsKwargs: ...
+    @overload
+    def rehydrate(v: DehydratedTorchNNModule) -> Module: ...
+    def rehydrate(v: DehydratedTorchNNModule | ConfigArgsKwargs) -> Module | ConfigArgsKwargs:
+        """Instantiate a module from its reconstruction record when the value carries the `__save_load_module__` marker.
+
+        The function calls `klass(*args, **kwargs)` to rebuild the module when `v` is a
+        `DehydratedTorchNNModule` [1] dictionary. All other values pass through unchanged.
+
+        Parameters
+        ----------
+        v : DehydratedTorchNNModule | ConfigArgsKwargs
+            The value to inspect and potentially reconstruct as a module.
+
+        Returns
+        -------
+        reconstructed : Module | ConfigArgsKwargs
+            A newly instantiated `torch.nn.Module` [2] when `v` is a reconstruction record, or `v`
+            unchanged for all other values.
+
+        References
+        ----------
+        [1] torch_einops_utils.DehydratedTorchNNModule
+
+        [2] torch.nn.Module - PyTorch documentation
+            https://pytorch.org/docs/stable/generated/torch.nn.Module.html
+        """
         if isinstance(v, dict) and v.get('__save_load_module__', False):
             klass = v['klass']
             args, kwargs = v['config']
             return klass(*args, **kwargs)
 
-        return v
+        return cast(ConfigArgsKwargs, v)
 
     return map_values(rehydrate, config)
 
@@ -60,19 +310,52 @@ def save_load(
     def _save_load(klass):
         assert issubclass(klass, Module), 'save_load should decorate a subclass of torch.nn.Module'
 
-        _orig_init = klass.__init__
+        _orig_init: Callable[..., None] = klass.__init__
 
         @wraps(_orig_init)
-        def __init__(self, *args, **kwargs):
+        def __init__(self: TorchNNModule, *args: Any, **kwargs: Any) -> None:
             setattr(self, config_instance_var_name, (args, kwargs))
             _orig_init(self, *args, **kwargs)
 
-        def _save(self, path, overwrite = True):
+        def _save(self: TorchNNModule, path: StrPath, overwrite: bool = True) -> None:
+            """Save the current model state and constructor configuration to a checkpoint file.
+
+            You can use this method to persist a decorated module instance. The method dehydrates
+            constructor configuration via `dehydrate_config` [1], packs it with the current state
+            dict and the version string captured at decoration time, and writes the bundle via
+            `torch.save` [2].
+
+            Parameters
+            ----------
+            path : StrPath
+                The filesystem path to write the checkpoint to.
+            overwrite : bool = True
+                When `False`, raise `FileExistsError` if a file already exists at `path`. When
+                `True`, an existing file at `path` is silently replaced.
+
+            Returns
+            -------
+            None
+
+            Raises
+            ------
+            FileExistsError
+                Raised when `overwrite` is `False` and a file already exists at `path`.
+
+            References
+            ----------
+            [1] torch_einops_utils.save_load.dehydrate_config
+
+            [2] torch.save - PyTorch documentation
+                https://pytorch.org/docs/stable/generated/torch.save.html
+            """
             path = Path(path)
-            assert overwrite or not path.exists()
+            if not overwrite and path.exists():
+                message: str = f'I received `{path = }`, but the file already exists and `overwrite` is `False`.'
+                raise FileExistsError(message)
 
             config = getattr(self, config_instance_var_name)
-            pkg = dict(
+            pkg = DehydratedCheckpoint(
                 model = self.state_dict(),
                 config = pickle.dumps(dehydrate_config(config, config_instance_var_name)),
                 version = version,
@@ -80,31 +363,105 @@ def save_load(
 
             torch.save(pkg, str(path))
 
-        def _load(self, path, strict = True):
-            path = Path(path)
-            assert path.exists()
+        def _load(self: TorchNNModule, path: StrPath | Path, strict: bool = True) -> None:
+            """Restore model state from a checkpoint file.
 
-            pkg = torch.load(str(path), map_location = 'cpu')
+            You can use this method to load parameter values into an already-constructed decorated
+            module instance. The method reads the checkpoint via `torch.load` [1] on CPU, emits a
+            `UserWarning` when the stored version and the decoration-time version both exist and
+            differ under `packaging.version.parse` [2], and then restores parameter values via
+            `load_state_dict`.
+
+            Parameters
+            ----------
+            path : StrPath | Path
+                The filesystem path to read the checkpoint from.
+            strict : bool = True
+                Forwarded to `load_state_dict`. When `True`, the key sets of the checkpoint and the
+                current model must match exactly.
+
+            Returns
+            -------
+            None
+
+            Raises
+            ------
+            FileNotFoundError
+                Raised when no file exists at `path`.
+
+            Warns
+            -----
+            UserWarning
+                Emitted when the checkpoint's stored version and the decoration-time version both
+                exist and differ under `packaging.version.parse` [2].
+
+            References
+            ----------
+            [1] torch.load - PyTorch documentation
+                https://pytorch.org/docs/stable/generated/torch.load.html
+
+            [2] packaging.version - packaging documentation
+                https://packaging.pypa.io/en/stable/version.html
+            """
+            path = Path(path)
+            if not path.exists():
+                message: str = f'I received `{path = }`, but no file exists at that path.'
+                raise FileNotFoundError(message)
+
+            pkg: DehydratedCheckpoint = torch.load(str(path), map_location = 'cpu')
 
             if exists(version) and exists(pkg['version']) and packaging_version.parse(version) != packaging_version.parse(pkg['version']):
-                print(f'loading saved model at version {pkg["version"]}, but current package version is {version}')
+                message: str = f'loading saved model at version {pkg["version"]}, but current package version is {version}'
+                print(message)
 
             self.load_state_dict(pkg['model'], strict = strict)
 
-        # init and load from
-        # looks for a `config` key in the stored checkpoint, instantiating the model as well as loading the state dict
-
         @classmethod
-        def _init_and_load_from(cls, path, strict = True):
+        def _init_and_load_from(cls: type[TorchNNModule], path: StrPath | Path, strict: bool = True) -> TorchNNModule:
+            """Construct a new instance of the decorated class and restore its state from a checkpoint file.
+
+            You can use this classmethod to reconstruct a model that was previously saved with the
+            corresponding save method. The classmethod reads the checkpoint, unpickles the `config`
+            entry, rebuilds the module graph via `rehydrate_config` [1], and then restores parameter
+            values from the same checkpoint.
+
+            Parameters
+            ----------
+            path : StrPath | Path
+                The filesystem path to read the checkpoint from.
+            strict : bool = True
+                Forwarded to `load_state_dict`. When `True`, the key sets of the checkpoint and the
+                reconstructed model must match exactly.
+
+            Returns
+            -------
+            model : TorchNNModule
+                A newly instantiated and state-restored instance of the decorated class.
+
+            Raises
+            ------
+            FileNotFoundError
+                Raised when no file exists at `path`.
+            KeyError
+                Raised when the checkpoint does not contain a `config` entry.
+
+            References
+            ----------
+            [1] torch_einops_utils.save_load.rehydrate_config
+            """
             path = Path(path)
-            assert path.exists()
-            pkg = torch.load(str(path), map_location = 'cpu')
+            if not path.exists():
+                message: str = f'I received `{path = }`, but no file exists at that path.'
+                raise FileNotFoundError(message)
+            pkg: DehydratedCheckpoint = torch.load(str(path), map_location = 'cpu')
 
-            assert 'config' in pkg, 'model configs were not found in this saved checkpoint'
+            if 'config' not in pkg:
+                message: str = 'model configs were not found in this saved checkpoint'
+                raise KeyError(message)
 
-            config = pickle.loads(pkg['config'])
+            config: ConfigArgsKwargs = pickle.loads(pkg['config'])
             args, kwargs = rehydrate_config(config)
-            model = cls(*args, **kwargs)
+            model: TorchNNModule = cls(*args, **kwargs)
 
             _load(model, path, strict = strict)
             return model
