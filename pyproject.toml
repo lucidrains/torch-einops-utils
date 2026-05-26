@@ -1,6 +1,6 @@
 [project]
 name = "torch-einops-utils"
-version = "0.1.0"
+version = "0.1.1"
 description = "Personal utility functions"
 authors = [
     { name = "Phil Wang", email = "lucidrains@gmail.com" }

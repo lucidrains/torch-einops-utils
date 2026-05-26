@@ -310,3 +310,18 @@ def test_shift():
 def test_reverse_cumsum():
     t = tensor([1, 2, 3])
     assert reverse_cumsum(t).tolist() == [6, 5, 3]
+
+def test_pad_right_ndim_to_and_expand_as():
+    from torch_einops_utils.torch_einops_utils import pad_right_ndim_to_and_expand_as
+
+    target = torch.randn(2, 8, 64)
+    source = torch.randint(0, 8, (2, 4))
+    assert pad_right_ndim_to_and_expand_as(source, target).shape == (2, 4, 64)
+
+    dest = torch.zeros(2, 8, 64)
+    source = torch.arange(4).unsqueeze(0).expand(2, -1)
+
+    scattered = dest.scatter(1, pad_right_ndim_to_and_expand_as(source, dest), torch.ones(2, 4, 64))
+
+    assert (scattered[:, :4] == 1.).all()
+    assert (scattered[:, 4:] == 0.).all()

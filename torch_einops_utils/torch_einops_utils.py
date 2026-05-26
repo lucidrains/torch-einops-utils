@@ -349,3 +349,11 @@ def pack_with_inverse(t, pattern):
         return out
 
     return packed, inverse
+
+# gather and scatter
+
+def pad_right_ndim_to_and_expand_as(source, target):
+    source_ndim = source.ndim
+    source = pad_right_ndim_to(source, target.ndim)
+    shape = [*source.shape[:source_ndim], *target.shape[source_ndim:]]
+    return source.expand(shape)
