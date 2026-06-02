@@ -325,3 +325,16 @@ def test_pad_right_ndim_to_and_expand_as():
 
     assert (scattered[:, :4] == 1.).all()
     assert (scattered[:, 4:] == 0.).all()
+
+def test_repeat_interleave_to_match():
+    from torch_einops_utils.torch_einops_utils import repeat_interleave_to_match
+    time_lens = torch.tensor([2, 3])
+
+    out = repeat_interleave_to_match(time_lens, torch.randn(4, 512))
+    assert out.tolist() == [2, 2, 3, 3]
+
+    out2 = repeat_interleave_to_match(time_lens, torch.randn(6, 128))
+    assert out2.tolist() == [2, 2, 2, 3, 3, 3]
+
+    out3 = repeat_interleave_to_match(time_lens, 6)
+    assert out3.tolist() == [2, 2, 2, 3, 3, 3]

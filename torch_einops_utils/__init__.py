@@ -58,7 +58,8 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
-    pad_right_ndim_to_and_expand_as
+    pad_right_ndim_to_and_expand_as,
+    repeat_interleave_to_match
 )
 
 from torch_einops_utils.nn import (

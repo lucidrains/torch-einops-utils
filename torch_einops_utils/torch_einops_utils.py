@@ -17,6 +17,9 @@ def exists(v):
 def default(v, d):
     return v if exists(v) else d
 
+def divisible_by(num, den):
+    return (num % den) == 0
+
 def identity(t, *args, **kwargs):
     return t
 
@@ -357,3 +360,17 @@ def pad_right_ndim_to_and_expand_as(source, target):
     source = pad_right_ndim_to(source, target.ndim)
     shape = [*source.shape[:source_ndim], *target.shape[source_ndim:]]
     return source.expand(shape)
+
+# repeat
+
+def repeat_interleave_to_match(t, target, dim = 0, target_dim = None):
+    target_dim = default(target_dim, dim)
+
+    len_t = t.shape[dim]
+    len_target = target if isinstance(target, int) else target.shape[target_dim]
+
+    if len_t == len_target:
+        return t
+
+    assert divisible_by(len_target, len_t)
+    return t.repeat_interleave(len_target // len_t, dim = dim)
