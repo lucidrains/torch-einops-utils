@@ -67,8 +67,10 @@ def save_load(
             setattr(self, config_instance_var_name, (args, kwargs))
             _orig_init(self, *args, **kwargs)
 
-        def _save(self, path, overwrite = True):
-            path = Path(path)
+        def _save(self, path: str | Path, overwrite = True):
+            if isinstance(path, str):
+                path = Path(path)
+
             assert overwrite or not path.exists()
 
             config = getattr(self, config_instance_var_name)
@@ -80,8 +82,10 @@ def save_load(
 
             torch.save(pkg, str(path))
 
-        def _load(self, path, strict = True):
-            path = Path(path)
+        def _load(self, path: str | Path, strict = True):
+            if isinstance(path, str):
+                path = Path(path)
+
             assert path.exists()
 
             pkg = torch.load(str(path), map_location = 'cpu')
@@ -95,8 +99,10 @@ def save_load(
         # looks for a `config` key in the stored checkpoint, instantiating the model as well as loading the state dict
 
         @classmethod
-        def _init_and_load_from(cls, path, strict = True):
-            path = Path(path)
+        def _init_and_load_from(cls, path: str | Path, strict = True):
+            if isinstance(path, str):
+                path = Path(path)
+
             assert path.exists()
             pkg = torch.load(str(path), map_location = 'cpu')
 
