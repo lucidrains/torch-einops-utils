@@ -73,3 +73,27 @@ def test_count_parameters():
 
     my_model_trainable = MyModelTrainable()
     assert my_model_trainable.num_parameters == 100
+
+def test_temp_eval():
+    from torch_einops_utils.nn import temp_eval
+
+    class MyModule(nn.Module):
+        @temp_eval
+        def do_eval_thing(self):
+            return self.training
+
+    model = MyModule()
+    assert model.training is True
+    assert model.do_eval_thing() is False
+    assert model.training is True
+
+    with temp_eval(model):
+        assert model.training is False
+    assert model.training is True
+
+    @temp_eval(model)
+    def some_func():
+        return model.training
+
+    assert some_func() is False
+    assert model.training is True

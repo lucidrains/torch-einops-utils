@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from typing import Callable
-from functools import partial
+from functools import partial, wraps
+from contextlib import contextmanager
 
 from torch.nn import Module
 from torch.nn import Sequential as PyTorchSequential
@@ -50,3 +51,23 @@ class Residual(Module):
 
         (first, *rest), inverse = tree_flatten_with_inverse(out)
         return inverse((first + x, *rest))
+
+# decorators
+
+def temp_eval(fn_or_module):
+    if isinstance(fn_or_module, Module):
+        @contextmanager
+        def inner():
+            was_training = fn_or_module.training
+            fn_or_module.eval()
+            try: yield
+            finally: fn_or_module.train(was_training)
+        return inner()
+
+    @wraps(fn_or_module)
+    def inner(self, *args, **kwargs):
+        was_training = self.training
+        self.eval()
+        try: return fn_or_module(self, *args, **kwargs)
+        finally: self.train(was_training)
+    return inner

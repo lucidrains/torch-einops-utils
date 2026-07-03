@@ -65,5 +65,6 @@ from torch_einops_utils.torch_einops_utils import (
 from torch_einops_utils.nn import (
     Sequential,
     Lambda,
-    Identity
+    Identity,
+    temp_eval
 )
