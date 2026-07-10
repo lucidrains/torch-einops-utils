@@ -58,6 +58,7 @@ from torch_einops_utils.torch_einops_utils import (
 )
 
 from torch_einops_utils.torch_einops_utils import (
+    batched_index_select,
     pad_right_ndim_to_and_expand_as,
     repeat_interleave_to_match
 )

@@ -35,7 +35,8 @@ from torch_einops_utils.torch_einops_utils import (
     mask_before,
     shift_right,
     shift_left,
-    reverse_cumsum
+    reverse_cumsum,
+    batched_index_select,
 )
 
 def test_exist():
@@ -338,3 +339,27 @@ def test_repeat_interleave_to_match():
 
     out3 = repeat_interleave_to_match(time_lens, 6)
     assert out3.tolist() == [2, 2, 2, 3, 3, 3]
+
+def test_batched_index_select():
+    from torch_einops_utils.torch_einops_utils import batched_index_select
+
+    values = torch.randn(2, 5, 4)
+    indices = torch.tensor([1, 3])
+
+    out = batched_index_select(values, indices)
+    assert out.shape == (2, 4)
+    assert torch.allclose(out[0], values[0, 1])
+    assert torch.allclose(out[1], values[1, 3])
+
+    indices_2d = torch.tensor([[1, 2], [3, 4]])
+    out2 = batched_index_select(values, indices_2d)
+    assert out2.shape == (2, 2, 4)
+    assert torch.allclose(out2[0, 0], values[0, 1])
+    assert torch.allclose(out2[1, 1], values[1, 4])
+
+    v = torch.randn(2, 3, 5, 4)
+    i = torch.tensor([[[0, 1], [1, 2], [3, 4]], [[4, 3], [2, 1], [0, 0]]])
+    out3 = batched_index_select(v, i, dim=2)
+    assert out3.shape == (2, 3, 2, 4)
+    assert torch.allclose(out3[0, 1, 0], v[0, 1, i[0, 1, 0]])
+    assert torch.allclose(out3[1, 2, 1], v[1, 2, i[1, 2, 1]])

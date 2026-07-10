@@ -355,6 +355,19 @@ def pack_with_inverse(t, pattern):
 
 # gather and scatter
 
+def batched_index_select(values, indices, dim = 1):
+    assert indices.ndim >= dim
+    device = values.device
+    batch_indices = []
+
+    for i in range(dim):
+        batch_arange = torch.arange(values.shape[i], device = device)
+        batch_arange = pad_left_ndim(batch_arange, i)
+        batch_arange = pad_right_ndim_to(batch_arange, indices.ndim)
+        batch_indices.append(batch_arange)
+
+    return values[tuple(batch_indices) + (indices,)]
+
 def pad_right_ndim_to_and_expand_as(source, target):
     source_ndim = source.ndim
     source = pad_right_ndim_to(source, target.ndim)
