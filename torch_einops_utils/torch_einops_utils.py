@@ -61,29 +61,113 @@ def safe(fn):
 # exported functions
 
 def masked_mean(
-    t,
-    mask = None,
-    dim = None,
-    eps = 1e-5,
-    keepdim = False
-):
-    dim_kwargs = dict(dim = dim, keepdim = keepdim)
+    t: torch.Tensor,
+    mask: torch.Tensor | None = None,
+    dim: torch.Size | list[int] | tuple[int, ...] | int | None = None,
+    eps: float = 1e-5,
+    *,
+    keepdim: bool = False
+) -> torch.Tensor:
+    """Compute the mean of `t` over positions selected by `mask`.
 
+    You can use this function to average only the elements of `t` where `mask` is `True`, ignoring
+    masked-out positions. When `mask` is `None`, the function falls back to the standard
+    `torch.Tensor.mean` [1]. When `mask` has fewer dimensions than `t`, the function right-pads
+    `mask` with singleton dimensions using `pad_right_ndim` [2] before broadcasting. When all
+    positions in `mask` are `False` and `dim` is `None`, the function returns zero by summing over
+    the empty selection.
+
+    Parameters
+    ----------
+    t : Tensor
+        The input tensor to be averaged.
+    mask : Tensor | None = None
+        A boolean tensor selecting which positions contribute to the mean. When `mask` has fewer
+        dimensions than `t`, singleton dimensions are appended on the right before broadcasting. Pass
+        `None` to compute an unmasked mean.
+    dim : torch.Size | list[int] | tuple[int, ...] | int | None = None
+        The dimension or dimensions along which to compute the mean. Pass `None` to reduce over all
+        dimensions.
+    eps : float = 1e-5
+        A small value added to the denominator to prevent division by zero when computing the masked
+        mean along a dimension.
+    keepdim : bool = False
+        When `True`, the reduced dimension is retained as a size-one dimension in `result`, allowing
+        `result` to broadcast against `t`.
+
+    Returns
+    -------
+    result : Tensor
+        The masked mean of `t`. The shape matches `t` with the reduced dimension removed when `dim`
+        is specified, or a scalar tensor when `dim` is `None`.
+
+    See Also
+    --------
+    pad_right_ndim : Pad singleton dimensions on the right of a tensor to reach a target number of dimensions.
+
+    Examples
+    --------
+    Compute the mean of all elements with no mask [3]:
+
+    ```python
+        from torch import tensor
+        from torch_einops_kit import masked_mean
+
+        t = tensor([1.0, 2.0, 3.0, 4.0])
+        result = masked_mean(t)
+        # result == tensor(2.5)
+    ```
+
+    Select only the `True` positions using a boolean mask [3]:
+
+    ```python
+        mask = tensor([True, False, True, False])
+        result = masked_mean(t, mask=mask)
+        # result == tensor(2.0)
+    ```
+
+    Average along a specific dimension [3]:
+
+    ```python
+        t = tensor([[1.0, 2.0], [3.0, 4.0]])
+        mask = tensor([[True, False], [True, True]])
+        result = masked_mean(t, mask=mask, dim=1)
+        # result == tensor([1.0, 3.5])
+    ```
+
+    Compute the sequence-level mean of transformer activations with `keepdim=True` to preserve the
+    sequence dimension for broadcasting, used in the mean-variance split residual update [4][5]:
+
+    ```python
+        mean_x = masked_mean(x, mask=mask, dim=-2, keepdim=True)
+        mean_residual = masked_mean(residual, mask=mask, dim=-2, keepdim=True)
+        centered_x = x - mean_x
+    ```
+
+    References
+    ----------
+    [1] torch.Tensor.mean - PyTorch documentation
+        https://pytorch.org/docs/stable/generated/torch.Tensor.mean.html
+    [2] torch_einops_utils.pad_right_ndim
+
+    [3] tests.test_utils.test_masked_mean
+
+    [4] Lu, P. (2026). Mean Mode Screaming: Mean-Variance Split Residuals for 1000-Layer Diffusion
+        Transformers. arXiv:2605.06169.
+        https://arxiv.org/abs/2605.06169
+    [5] x_transformers.x_transformers.MVSplitResidualUpdate.forward - lucidrains/x-transformers
+        https://github.com/lucidrains/x-transformers
+
+    """
     if not exists(mask):
-        return t.mean(**dim_kwargs) if exists(dim) else t.mean()
+        mask = torch.ones_like(t, dtype=torch.bool)
 
-    if mask.ndim < t.ndim:
-        mask = pad_right_ndim(mask, t.ndim - mask.ndim)
+    mask = pad_right_ndim(mask, max(0, t.ndim - mask.ndim)).expand_as(t)
 
-    mask = mask.expand_as(t)
+    num: torch.Tensor = (t * mask).sum(dim=dim, keepdim=keepdim)
+    den: torch.Tensor = mask.sum(dim=dim, keepdim=keepdim)
 
-    if not exists(dim):
-        return t[mask].mean() if mask.any() else t[mask].sum()
-
-    num = (t * mask).sum(**dim_kwargs)
-    den = mask.sum(**dim_kwargs)
-
-    return num / den.clamp(min = eps)
+    return num / den.clamp(min=eps)
 
 # cumsum
 
