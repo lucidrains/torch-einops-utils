@@ -17,8 +17,26 @@ def exists(v):
 def default(v, d):
     return v if exists(v) else d
 
-def divisible_by(num, den):
-    return (num % den) == 0
+def divisible_by(num: float, den: float) -> bool:
+    """Test whether `num` is evenly divisible by `den`.
+
+    You can use `divisible_by` to check divisibility without raising a `ZeroDivisionError` when `den`
+    is zero. `divisible_by` returns `False` whenever `den` is zero, and otherwise returns `True` when
+    `num % den == 0`.
+
+    Parameters
+    ----------
+    num : float
+        The numerator to test.
+    den : float
+        The denominator.
+
+    Returns
+    -------
+    is_divisible : bool
+        `True` when `den != 0` and `num % den == 0`, otherwise `False`.
+    """
+    return (den != 0) and ((num % den) == 0)
 
 def identity(t, *args, **kwargs):
     return t
