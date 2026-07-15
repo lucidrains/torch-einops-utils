@@ -220,13 +220,13 @@ def mask_after(t, value, dim = -1, inclusive = True):
     mask = t == value
     if inclusive:
         mask = shift_right(mask, amount = 1, dim = dim, pad_value = False)
-    return mask.float().cumsum(dim = dim) == 0.
+    return mask.int().cumsum(dim = dim) == 0
 
 def mask_before(t, value, dim = -1, inclusive = True):
     mask = t == value
     if inclusive:
         mask = shift_left(mask, amount = 1, dim = dim, pad_value = False)
-    return reverse_cumsum(mask.float(), dim = dim) == 0.
+    return reverse_cumsum(mask.int(), dim = dim) == 0
 
 # padding
 
