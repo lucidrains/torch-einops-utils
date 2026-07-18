@@ -63,9 +63,18 @@ from torch_einops_utils.torch_einops_utils import (
     repeat_interleave_to_match
 )
 
+from torch_einops_utils.torch_einops_utils import (
+    detach_tensor,
+    tree_map_detach
+)
+
 from torch_einops_utils.nn import (
     Sequential,
     Lambda,
     Identity,
     temp_eval
+)
+
+from torch_einops_utils.device import (
+    tree_map_tensor_to_device
 )

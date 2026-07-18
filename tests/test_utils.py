@@ -363,3 +363,35 @@ def test_batched_index_select():
     assert out3.shape == (2, 3, 2, 4)
     assert torch.allclose(out3[0, 1, 0], v[0, 1, i[0, 1, 0]])
     assert torch.allclose(out3[1, 2, 1], v[1, 2, i[1, 2, 1]])
+
+def test_detach_tensor():
+    from torch_einops_utils import detach_tensor
+
+    t = torch.randn(3, requires_grad=True)
+    out = detach_tensor(t)
+    assert not out.requires_grad
+    assert t.requires_grad
+
+    out_preserve = detach_tensor(t, preserve_requires_grad=True)
+    assert out_preserve.requires_grad
+    assert out_preserve.data_ptr() != t.data_ptr() or out_preserve is not t
+
+    out_clone = detach_tensor(t, clone=True)
+    assert not out_clone.requires_grad
+    assert out_clone.data_ptr() != t.data_ptr()
+
+def test_tree_map_detach():
+    from torch_einops_utils import tree_map_detach
+
+    t1 = torch.randn(3, requires_grad=True)
+    t2 = torch.randn(4, requires_grad=True)
+    tree = (t1, [t2, {'a': torch.randn(5)}])
+
+    out_tree = tree_map_detach(tree)
+    assert not out_tree[0].requires_grad
+    assert not out_tree[1][0].requires_grad
+    assert not out_tree[1][1]['a'].requires_grad
+
+    out_tree_preserve = tree_map_detach(tree, preserve_requires_grad=True)
+    assert out_tree_preserve[0].requires_grad
+    assert out_tree_preserve[1][0].requires_grad

@@ -387,3 +387,25 @@ def repeat_interleave_to_match(t, target, dim = 0, target_dim = None):
 
     assert divisible_by(len_target, len_t)
     return t.repeat_interleave(len_target // len_t, dim = dim)
+
+# detach
+
+def detach_tensor(
+    t,
+    *,
+    preserve_requires_grad = False,
+    clone = False
+):
+    orig_requires_grad = t.requires_grad
+    out = t.detach()
+
+    if clone:
+        out = out.clone()
+
+    if not preserve_requires_grad:
+        return out
+
+    return out.requires_grad_(orig_requires_grad)
+
+def tree_map_detach(tree, **kwargs):
+    return tree_map_tensor(lambda t: detach_tensor(t, **kwargs), tree)

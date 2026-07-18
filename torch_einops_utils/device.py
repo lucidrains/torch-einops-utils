@@ -22,6 +22,9 @@ def module_device(m: Module):
 
     return first_param_or_buffer.device
 
+def tree_map_tensor_to_device(tree, device):
+    return tree_map_tensor(lambda t: t.to(device), tree)
+
 # moving all inputs into a function onto a device
 
 def move_inputs_to_device(device):
