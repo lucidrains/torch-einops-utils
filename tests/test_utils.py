@@ -291,6 +291,21 @@ def test_z_score():
     out_all = z_score(t)
     assert out_all.shape == t.shape
 
+    # unaligned mask dimension test (2D mask with 3D tensor)
+    t_3d = torch.randn(2, 3, 4)
+    mask_2d = torch.tensor([[True, False, True], [False, True, False]])
+    out_3d = z_score(t_3d, mask = mask_2d, dim = (1, 2))
+    assert out_3d.shape == (2, 3, 4)
+    assert (out_3d[0, 1] == 0.0).all()
+    assert (out_3d[1, 0] == 0.0).all()
+    assert (out_3d[1, 2] == 0.0).all()
+
+    # 1D mask with 3D tensor test
+    mask_1d = torch.tensor([True, False])
+    out_3d_1dmask = z_score(t_3d, mask = mask_1d, dim = (1, 2))
+    assert out_3d_1dmask.shape == (2, 3, 4)
+    assert (out_3d_1dmask[1] == 0.0).all()
+
 def test_exclusive_cumsum():
     t = tensor([1., 2., 3., 4.])
     assert torch.allclose(exclusive_cumsum(t), tensor([0., 1., 3., 6.]))
