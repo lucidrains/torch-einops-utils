@@ -60,6 +60,34 @@ def safe(fn):
 
 # exported functions
 
+def masked_reduce(
+    t,
+    mode = 'mean',
+    mask = None,
+    dim = None,
+    eps = 1e-5,
+    keepdim = False
+):
+    assert mode in {'mean', 'sum'}, f'unsupported reduction mode {mode}'
+
+    dim_kwargs = dict(dim = dim, keepdim = keepdim) if exists(dim) or keepdim else {}
+
+    if not exists(mask):
+        fn = getattr(t, mode)
+        return fn(**dim_kwargs)
+
+    if mask.ndim < t.ndim:
+        mask = pad_right_ndim(mask, t.ndim - mask.ndim)
+
+    mask = mask.expand_as(t)
+    num = t.masked_fill(~mask, 0).sum(**dim_kwargs)
+
+    if mode == 'sum':
+        return num
+
+    den = mask.sum(**dim_kwargs)
+    return num / den.clamp(min = eps)
+
 def masked_mean(
     t,
     mask = None,
@@ -67,23 +95,15 @@ def masked_mean(
     eps = 1e-5,
     keepdim = False
 ):
-    dim_kwargs = dict(dim = dim, keepdim = keepdim)
+    return masked_reduce(t, mode = 'mean', mask = mask, dim = dim, eps = eps, keepdim = keepdim)
 
-    if not exists(mask):
-        return t.mean(**dim_kwargs) if exists(dim) else t.mean()
-
-    if mask.ndim < t.ndim:
-        mask = pad_right_ndim(mask, t.ndim - mask.ndim)
-
-    mask = mask.expand_as(t)
-
-    if not exists(dim):
-        return t[mask].mean() if mask.any() else t[mask].sum()
-
-    num = (t * mask).sum(**dim_kwargs)
-    den = mask.sum(**dim_kwargs)
-
-    return num / den.clamp(min = eps)
+def masked_sum(
+    t,
+    mask = None,
+    dim = None,
+    keepdim = False
+):
+    return masked_reduce(t, mode = 'sum', mask = mask, dim = dim, keepdim = keepdim)
 
 # cumsum
 
