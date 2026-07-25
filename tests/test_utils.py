@@ -268,6 +268,29 @@ def test_masked_reduce():
     with pytest.raises(AssertionError):
         masked_reduce(t, mode = 'invalid', mask = mask)
 
+def test_z_score():
+    from torch_einops_utils.statistics import z_score
+
+    t = tensor([1., 2., 3., 4., 5.])
+    out = z_score(t)
+    assert torch.allclose(out.mean(), tensor(0.0), atol = 1e-6)
+    assert torch.allclose(out.std(correction = 0), tensor(1.0), atol = 1e-3)
+
+    mask = tensor([True, True, True, False, False])
+    out = z_score(t, mask = mask)
+    assert torch.allclose(out[3], tensor(0.0))
+    assert torch.allclose(out[4], tensor(0.0))
+    assert torch.allclose(out[:3].mean(), tensor(0.0), atol = 1e-6)
+
+    t = torch.randn(3, 4)
+    out = z_score(t, dim = 1)
+    assert out.shape == t.shape
+    assert torch.allclose(out.mean(dim = 1), torch.zeros(3), atol = 1e-5)
+    assert torch.allclose(out.std(dim = 1, correction = 0), torch.ones(3), atol = 1e-3)
+
+    out_all = z_score(t)
+    assert out_all.shape == t.shape
+
 def test_exclusive_cumsum():
     t = tensor([1., 2., 3., 4.])
     assert torch.allclose(exclusive_cumsum(t), tensor([0., 1., 3., 6.]))
