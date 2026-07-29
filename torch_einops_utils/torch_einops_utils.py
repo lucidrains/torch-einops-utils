@@ -70,6 +70,9 @@ def masked_reduce(
 ):
     assert mode in {'mean', 'sum'}, f'unsupported reduction mode {mode}'
 
+    if isinstance(dim, slice):
+        dim = tuple(range(t.ndim)[dim])
+
     dim_kwargs = dict(dim = dim, keepdim = keepdim) if exists(dim) or keepdim else {}
 
     if not exists(mask):

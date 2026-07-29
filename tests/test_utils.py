@@ -212,6 +212,13 @@ def test_masked_mean():
     assert res_no_mask_keepdim.shape == (2, 1, 1)
     assert torch.allclose(res_no_mask_keepdim.squeeze(), t.mean(dim = (1, 2)))
 
+    res_slice = masked_mean(t, mask = mask, dim = slice(1, None))
+    assert torch.allclose(res_slice, res)
+
+    # einops reduce parity
+    from einops import reduce
+    assert torch.allclose(masked_mean(t, dim = slice(1, None)), reduce(t, 'b ... -> b', 'mean'))
+
 def test_masked_sum():
     t = tensor([1., 2., 3., 4.])
     assert torch.allclose(masked_sum(t), tensor(10.0))
