@@ -390,6 +390,145 @@ def test_shape_non_string_pattern():
     with pytest.raises(AssertionError):
         shape(torch.randn(2), 3)
 
+# arrow selection and reordering
+
+def test_shape_arrow_extract_subset():
+    video = torch.randn(2, 8, 3, 16, 16)
+    parsed = shape(video, 'b t c h w -> b h w')
+
+    assert parsed.b == 2
+    assert parsed.h == 16
+    assert parsed.w == 16
+    assert parsed.names == ('b', 'h', 'w')
+    assert parsed.ndim == 3
+    assert parsed.shape == (2, 16, 16)
+    assert tuple(parsed) == (2, 16, 16)
+    assert torch.randn(tuple(parsed)).shape == (2, 16, 16)
+
+    b, h, w = parsed
+    assert (b, h, w) == (2, 16, 16)
+    assert len(parsed) == 3
+
+    with pytest.raises(AttributeError):
+        parsed.t
+    with pytest.raises(AttributeError):
+        parsed.c
+    with pytest.raises(KeyError):
+        parsed['t']
+
+def test_shape_arrow_reordering():
+    video = torch.randn(2, 8, 3, 16, 16)
+    parsed = shape(video, 'b t c h w -> w t b')
+
+    w, t, b = parsed
+    assert (w, t, b) == (16, 8, 2)
+    assert parsed.names == ('w', 't', 'b')
+
+    parsed = shape(video, 'b t c h w -> h c')
+    h, c = parsed
+    assert (h, c) == (16, 3)
+
+def test_shape_arrow_ellipsis():
+    t = torch.randn(2, 3, 4, 5, 6)
+    parsed = shape(t, 'b ... c -> b ...')
+
+    b, *rest = parsed
+    assert b == 2
+    assert rest == [3, 4, 5]
+    assert tuple(parsed) == (2, 3, 4, 5)
+    assert torch.randn(tuple(parsed)).shape == (2, 3, 4, 5)
+    assert parsed.ellipsis == [3, 4, 5]
+    assert parsed['...'] == [3, 4, 5]
+    assert parsed.names == ('b',)
+
+    parsed = shape(t, 'b ... c -> ... b')
+    assert tuple(parsed) == (3, 4, 5, 2)
+    assert parsed.shape == (3, 4, 5, 2)
+
+    parsed = shape(t, 'b ... c -> b c')
+    b, c = parsed
+    assert b == 2 and c == 6
+
+def test_shape_arrow_named_ellipsis():
+    t = torch.randn(2, 3, 10, 20, 4, 5)
+    parsed = shape(t, 'b t ... f...2 -> ... b f')
+
+    assert tuple(parsed) == (10, 20, 2, 4, 5)
+    assert parsed.shape == (10, 20, 2, 4, 5)
+    assert parsed.f == [4, 5]
+
+    parsed = shape(t, 'b t ... f...2 -> b f')
+    assert tuple(parsed) == (2, 4, 5)
+    assert parsed.shape == (2, 4, 5)
+    assert parsed.b == 2
+    assert parsed.f == [4, 5]
+
+def test_shape_arrow_group():
+    t = torch.randn(2, 48, 3)
+    parsed = shape(t, 'b (h w) d -> w b', h = 8)
+
+    w, b = parsed
+    assert w == 6
+    assert b == 2
+    assert parsed.w == 6
+
+    with pytest.raises(AttributeError):
+        parsed.h
+
+def test_shape_arrow_assertions_and_replace():
+    t = torch.randn(2, 8, 3, 16, 16)
+    parsed = shape(t, 'b t c h w -> b h w', c = 3)
+
+    with pytest.raises(ShapeError):
+        shape(t, 'b t c h w -> b h w', c = 4)
+
+    assert parsed.replace(h = 32) == (2, 32, 16)
+    assert parsed.axis('h') == 1
+    assert not exists(parsed.axis('t'))
+
+    assert is_shape(t, 'b t c h w')
+    assert not is_shape(torch.randn(2, 8), 'b t c h w')
+
+    with pytest.raises(AssertionError):
+        is_shape(t, 'b t c h w -> b h w')
+
+def test_shape_arrow_equality_and_matches():
+    x = torch.randn(2, 8, 3, 16, 16)
+    y = torch.randn(2, 8, 3, 16, 16)
+
+    parsed_x = shape(x, 'b t c h w -> b h w')
+    parsed_y = shape(y, 'b t c h w -> b h w')
+    parsed_full = shape(y, 'b t c h w')
+
+    assert parsed_x == parsed_y
+    assert parsed_x != parsed_full
+    assert parsed_x == (2, 16, 16)
+    assert parsed_x.matches({'b': 2, 'h': 16})
+    assert not parsed_x.matches({'b': 2, 'h': 32})
+    assert parsed_x.matches(parsed_full)
+
+def test_shape_arrow_invalid():
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> d')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> s s')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> b ...')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> ...2')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> b (s)')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> b -> s')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s ->')
+
 # decorator
 
 def test_assert_shape_string():

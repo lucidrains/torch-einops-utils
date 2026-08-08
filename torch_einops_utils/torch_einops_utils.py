@@ -73,7 +73,7 @@ def masked_reduce(
     if isinstance(dim, slice):
         dim = tuple(range(t.ndim)[dim])
 
-    dim_kwargs = dict(dim = dim, keepdim = keepdim) if exists(dim) or keepdim else {}
+    dim_kwargs = dict(dim = dim, keepdim = keepdim) if exists(dim) or keepdim else dict()
 
     if not exists(mask):
         fn = getattr(t, mode)

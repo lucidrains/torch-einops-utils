@@ -14,8 +14,6 @@ NAME_RE = re.compile(r'[\w\-]+')
 
 # exceptions
 
-# raised when a tensor shape does not match the given pattern
-
 class ShapeError(AssertionError):
     pass
 
@@ -45,55 +43,42 @@ def validate_name(name, pattern):
     if not is_anonymous_or_num(name):
         assert NAME_RE.fullmatch(name), f'pattern "{pattern}" has invalid axis name "{name}"'
 
-@lru_cache(maxsize=256)
-def parse_pattern(pattern):
-    assert isinstance(pattern, str), f'pattern must be a string, got {type(pattern).__name__}'
+def _ellipsis_token(token_str, pattern):
+    parts = token_str.split('...')
+    prefix, suffix = parts[0], parts[-1]
 
+    name = prefix if prefix != '' else (suffix if suffix != '' and not suffix.isdigit() else None)
+    length = int(suffix) if suffix.isdigit() else None
+
+    if exists(name):
+        validate_name(name, pattern)
+
+    return ('ellipsis', name, length)
+
+def _tokenize(pattern):
     tokens = []
     i, n = 0, len(pattern)
 
     while i < n:
-        char = pattern[i]
-
-        if char.isspace():
+        if pattern[i].isspace():
             i += 1
             continue
 
-        if char == '(':
+        if pattern[i] == '(':
             j = pattern.find(')', i)
             assert j != -1, f'pattern "{pattern}" has an unclosed parenthesis'
             assert '(' not in pattern[i + 1:j], f'pattern "{pattern}" has nested parentheses, which are not supported'
 
-            group_str = pattern[i + 1:j].strip()
-            assert len(group_str) > 0, f'pattern "{pattern}" has an empty group'
+            group_tokens = pattern[i + 1:j].strip().split()
+            assert len(group_tokens) > 0, f'pattern "{pattern}" has an empty group'
 
-            group_tokens = group_str.split()
+            if len(group_tokens) == 1 and '...' in group_tokens[0]:
+                tokens.append(_ellipsis_token(group_tokens[0], pattern))
+            else:
+                for name in group_tokens:
+                    validate_name(name, pattern)
+                tokens.append(('group', tuple(group_tokens)))
 
-            if any('...' in tok for tok in group_tokens):
-                if len(group_tokens) == 1:
-                    token_str = group_tokens[0]
-                    parts = token_str.split('...')
-                    prefix, suffix = parts[0], parts[-1]
-
-                    name = None
-                    if prefix != '':
-                        name = prefix
-                    elif suffix != '' and not suffix.isdigit():
-                        name = suffix
-
-                    length = int(suffix) if suffix.isdigit() else None
-
-                    if exists(name):
-                        validate_name(name, pattern)
-
-                    tokens.append(('ellipsis', name, length))
-                    i = j + 1
-                    continue
-
-            for name in group_tokens:
-                validate_name(name, pattern)
-
-            tokens.append(('group', tuple(group_tokens)))
             i = j + 1
             continue
 
@@ -105,63 +90,85 @@ def parse_pattern(pattern):
         i = j
 
         if '...' in token_str:
-            parts = token_str.split('...')
-            prefix, suffix = parts[0], parts[-1]
-
-            name = None
-            if prefix != '':
-                name = prefix
-            elif suffix != '' and not suffix.isdigit():
-                name = suffix
-
-            length = int(suffix) if suffix.isdigit() else None
-
-            if exists(name):
-                validate_name(name, pattern)
-
-            tokens.append(('ellipsis', name, length))
+            tokens.append(_ellipsis_token(token_str, pattern))
             continue
 
-        name = token_str
-        validate_name(name, pattern)
-        tokens.append(('name', name))
+        validate_name(token_str, pattern)
+        tokens.append(('name', token_str))
 
     assert len(tokens) > 0, f'pattern "{pattern}" is empty'
-    assert sum(tok[0] == 'ellipsis' and tok[2] is None for tok in tokens) <= 1, f'pattern "{pattern}" has more than one variable-length ellipsis'
+    assert sum(tok[0] == 'ellipsis' and not exists(tok[2]) for tok in tokens) <= 1, f'pattern "{pattern}" has more than one variable-length ellipsis'
 
+    return tokens
+
+def _axis_names(tok):
+    if tok[0] == 'ellipsis':
+        return (tok[1],) if exists(tok[1]) else ()
+    return tok[1] if tok[0] == 'group' else (tok[1],)
+
+def _collect_names(tokens, pattern):
     names = []
     seen = set()
 
     for tok in tokens:
-        tok_type = tok[0]
-        axis_names = ()
-
-        if tok_type in ('name', 'group'):
-            axis_names = tok[1] if tok_type == 'group' else (tok[1],)
-        elif tok_type == 'ellipsis' and exists(tok[1]):
-            axis_names = (tok[1],)
-
-        for name in axis_names:
+        for name in _axis_names(tok):
             if is_anonymous_or_num(name):
                 continue
-
             assert name not in seen, f'pattern "{pattern}" repeats axis "{name}"'
             seen.add(name)
             names.append(name)
 
-    return tokens, names
+    return names
+
+@lru_cache(maxsize=256)
+def parse_pattern(pattern):
+    assert isinstance(pattern, str), f'pattern must be a string, got {type(pattern).__name__}'
+
+    left, *rest = pattern.split('->')
+    assert len(rest) <= 1, f'pattern "{pattern}" has more than one arrow "->"'
+
+    tokens = _tokenize(left)
+    names = _collect_names(tokens, pattern)
+
+    if len(rest) == 0:
+        return tokens, names, None
+
+    right = rest[0]
+    assert len(right.strip()) > 0, f'pattern "{pattern}" has nothing after the arrow "->"'
+
+    selection = []
+    seen = set()
+    left_has_ellipsis = any(tok[0] == 'ellipsis' for tok in tokens)
+
+    for tok in _tokenize(right):
+        if tok[0] == 'group':
+            raise AssertionError(f'pattern "{pattern}" cannot use groups after the arrow "->"')
+
+        if tok[0] == 'ellipsis':
+            assert tok[2] is None, f'pattern "{pattern}" only supports bare "..." after the arrow "->"'
+            assert left_has_ellipsis, f'pattern "{pattern}" uses "..." after the arrow "->" but the left side has no ellipsis'
+            key = '...'
+        else:
+            if is_anonymous_or_num(tok[1]):
+                continue
+            key = tok[1]
+
+        assert key == '...' or key in names, f'pattern "{pattern}" selects axis "{key}" that is not on the left side of "->"'
+        assert key not in seen, f'pattern "{pattern}" repeats axis "{key}" after the arrow "->"'
+        seen.add(key)
+        selection.append(tok)
+
+    return tokens, names, selection
 
 # matching
 
 def match(tokens, shape, assertions):
-    n_var_ellipsis = sum(tok[0] == 'ellipsis' and tok[2] is None for tok in tokens)
+    fixed_len_sum = sum(
+        1 if tok[0] in ('name', 'group') else (tok[2] or 0)
+        for tok in tokens
+    )
 
-    fixed_len_sum = 0
-    for tok in tokens:
-        if tok[0] in ('name', 'group'):
-            fixed_len_sum += 1
-        elif tok[0] == 'ellipsis' and tok[2] is not None:
-            fixed_len_sum += tok[2]
+    n_var_ellipsis = sum(tok[0] == 'ellipsis' and not exists(tok[2]) for tok in tokens)
 
     if n_var_ellipsis > 0:
         if fixed_len_sum > len(shape):
@@ -172,29 +179,19 @@ def match(tokens, shape, assertions):
             return fail(f'expected {fixed_len_sum} dims, got {len(shape)}')
         var_len = 0
 
-    pairs = []
-    curr = 0
-
-    for tok in tokens:
-        tok_type = tok[0]
-
-        if tok_type in ('name', 'group'):
-            pairs.append((tok, shape[curr], curr, curr + 1))
-            curr += 1
-        elif tok_type == 'ellipsis':
-            length = tok[2] if tok[2] is not None else var_len
-            sub_shape = tuple(shape[curr:curr + length])
-            pairs.append((tok, sub_shape, curr, curr + length))
-            curr += length
-
     dims, indices = dict(), dict()
     known = dict(assertions)
     ellipsis_shape = None
+    curr = 0
 
-    for tok, dim_val, start, end in pairs:
-        tok_type = tok[0]
+    for tok in tokens:
+        tok_type, is_ellipsis = tok[0], tok[0] == 'ellipsis'
+        length = default(tok[2], var_len) if is_ellipsis else 1
+        dim_val = tuple(shape[curr:curr + length]) if is_ellipsis else shape[curr]
+        start, end = curr, curr + length
+        curr = end
 
-        if tok_type == 'ellipsis':
+        if is_ellipsis:
             name = tok[1]
             if exists(name):
                 if name in known:
@@ -206,60 +203,54 @@ def match(tokens, shape, assertions):
             else:
                 ellipsis_shape = list(dim_val)
                 indices['...'] = slice(start, end)
+
             continue
 
         if tok_type == 'name':
             name = tok[1]
-            dim = dim_val
 
-            if name == '_':
-                pass
-            elif name.isdigit():
-                target_size = int(name)
-                if dim != target_size:
-                    return fail(f'axis at position {start} should be of size {target_size}, got {dim}')
-            elif name in known and known[name] != dim:
-                return fail(f'axis "{name}" at position {start} should be {known[name]}, got {dim}')
+            if is_anonymous_or_num(name):
+                if name.isdigit() and dim_val != int(name):
+                    return fail(f'axis at position {start} should be of size {int(name)}, got {dim_val}')
+            elif name in known and known[name] != dim_val:
+                return fail(f'axis "{name}" at position {start} should be {known[name]}, got {dim_val}')
             else:
-                dims[name] = dim
+                dims[name] = dim_val
                 indices[name] = start
 
             continue
 
-        if tok_type == 'group':
-            dim = dim_val
-            group_names = tok[1]
-            group_known = dict()
-            for name in group_names:
-                if name in known:
-                    group_known[name] = known[name]
-                elif name.isdigit():
-                    group_known[name] = int(name)
+        group_names = tok[1]
 
-            unknown = [name for name in group_names if name not in group_known and name != '_']
-            known_product = prod(group_known.values())
-            group_repr = f'({" ".join(group_names)})'
+        group_known = dict()
+        for name in group_names:
+            if name in known:
+                group_known[name] = known[name]
+            elif name.isdigit():
+                group_known[name] = int(name)
 
-            if len(unknown) == 0:
-                if known_product != dim:
-                    return fail(f'group "{group_repr}" at position {start} should have product {known_product}, got {dim}')
-            else:
-                if not divisible_by(dim, known_product):
-                    return fail(f'group "{group_repr}" at position {start} should have product divisible by {known_product}, got {dim}')
+        unknown = [name for name in group_names if name not in group_known and name != '_']
+        known_product = prod(group_known.values())
+        group_repr = f'({" ".join(group_names)})'
 
-                if len(unknown) == 1:
-                    known[unknown[0]] = dim // known_product if known_product != 0 else 0
+        if len(unknown) == 0:
+            if known_product != dim_val:
+                return fail(f'group "{group_repr}" at position {start} should have product {known_product}, got {dim_val}')
+        else:
+            if not divisible_by(dim_val, known_product):
+                return fail(f'group "{group_repr}" at position {start} should have product divisible by {known_product}, got {dim_val}')
 
-            for name, size in known.items():
-                if name in group_names and not is_anonymous_or_num(name):
-                    dims[name] = size
-                    indices[name] = start
+            if len(unknown) == 1:
+                known[unknown[0]] = dim_val // known_product if known_product != 0 else 0
+
+        for name, size in known.items():
+            if name in group_names and not is_anonymous_or_num(name):
+                dims[name] = size
+                indices[name] = start
 
     return dims, indices, ellipsis_shape, None
 
-# main function
-
-# validate a tensor against an einops-style pattern, returning a ParsedShape with named accessors
+# main
 
 def shape(
     t,
@@ -270,7 +261,7 @@ def shape(
 ):
     assert is_tensor(t), f'shape() expects a tensor, got {type(t).__name__}'
 
-    tokens, names = parse_pattern(pattern)
+    tokens, names, selection = parse_pattern(pattern)
 
     SymInt = getattr(torch, 'SymInt', int)
 
@@ -285,18 +276,41 @@ def shape(
             raise ShapeError(f'tensor of shape {tuple(t.shape)} does not match pattern "{pattern}": {error}')
         return None
 
-    return ParsedShape(t.shape, pattern, dims, indices, ellipsis_shape, tokens = tokens)
+    return ParsedShape(t.shape, pattern, dims, indices, ellipsis_shape, tokens = tokens, selection = selection)
 
 def is_shape(
     t,
     pattern,
     **assertions
 ) -> bool:
+    assert '->' not in pattern, f'is_shape() does not support arrow patterns, given "{pattern}"'
     return exists(shape(t, pattern, throw_error = False, **assertions))
 
 # parsed shape
 
-# result of shape() with attribute accessors for each named axis
+def _extract_selection(tokens, selection, dims, indices, ellipsis):
+    left_ellipsis_name = next(
+        (tok[1] for tok in tokens if tok[0] == 'ellipsis' and exists(tok[1])),
+        None
+    )
+
+    sel_dims, sel_indices, sel_items = dict(), dict(), []
+    pos = 0
+
+    for tok in selection:
+        if tok[0] == 'ellipsis':
+            item = ellipsis if exists(ellipsis) else dims[left_ellipsis_name]
+            sel_indices['...'] = slice(pos, pos + len(item))
+        else:
+            name = tok[1]
+            item = dims[name]
+            sel_dims[name] = item
+            sel_indices[name] = pos if not isinstance(item, (tuple, list)) else slice(pos, pos + len(item))
+
+        sel_items.append(item)
+        pos += len(item) if isinstance(item, (tuple, list)) else 1
+
+    return sel_dims, sel_indices, sel_items
 
 class ParsedShape:
 
@@ -307,14 +321,21 @@ class ParsedShape:
         dims,
         indices,
         ellipsis_shape,
-        tokens = ()
+        tokens = (),
+        selection = None
     ):
         self._shape = tuple(shape)
         self._pattern = pattern
-        self._dims = dict(dims)
-        self._indices = dict(indices)
         self._ellipsis = list(ellipsis_shape) if exists(ellipsis_shape) else None
         self._tokens = tuple(tokens)
+        self._selection = None
+
+        if exists(selection):
+            dims, indices, self._selection = _extract_selection(self._tokens, selection, dims, indices, self._ellipsis)
+            self._shape = tuple(dim for item in self._selection for dim in (item if isinstance(item, (tuple, list)) else (item,)))
+
+        self._dims = dict(dims)
+        self._indices = dict(indices)
 
     @property
     def pattern(self): return self._pattern
@@ -341,10 +362,7 @@ class ParsedShape:
             index_or_slice = self._indices.get(name)
             if not exists(index_or_slice):
                 raise KeyError(f'axis "{name}" is not in pattern "{self._pattern}"')
-            if isinstance(index_or_slice, slice):
-                shape[index_or_slice] = list(size)
-            else:
-                shape[index_or_slice] = size
+            shape[index_or_slice] = list(size) if isinstance(index_or_slice, slice) else size
 
         return tuple(shape)
 
@@ -364,37 +382,34 @@ class ParsedShape:
 
     def __getitem__(self, name):
         if name == '...':
-            if exists(self._ellipsis):
-                return self._ellipsis
-            raise KeyError(f'pattern "{self._pattern}" has no ellipsis')
+            if not exists(self._ellipsis):
+                raise KeyError(f'pattern "{self._pattern}" has no ellipsis')
+            return self._ellipsis
         if name not in self._dims:
             raise KeyError(f'axis "{name}" is not in pattern "{self._pattern}"')
         return self._dims[name]
 
     def __iter__(self):
-        for tok in self._tokens:
-            tok_type = tok[0]
+        if exists(self._selection):
+            yield from self._shape
+            return
 
-            if tok_type == 'ellipsis':
+        for tok in self._tokens:
+            if tok[0] == 'ellipsis':
                 name = tok[1]
                 if exists(name) and name in self._dims:
                     yield self._dims[name]
                 elif exists(self._ellipsis):
                     yield self._ellipsis
-                continue
 
-            if tok_type == 'name':
-                name = tok[1]
-                if name in self._dims:
-                    yield self._dims[name]
-                continue
+            elif tok[0] == 'name':
+                if tok[1] in self._dims:
+                    yield self._dims[tok[1]]
 
-            if tok_type == 'group':
-                group_names = tok[1]
-                for name in group_names:
+            else:
+                for name in tok[1]:
                     if name in self._dims:
                         yield self._dims[name]
-                continue
 
     def __len__(self):
         return sum(1 for _ in self)
@@ -413,8 +428,6 @@ class ParsedShape:
 
 # decorator
 
-# decorator to validate the shapes of tensor arguments against einops-style patterns
-
 def assert_shape(spec, **assertions):
     is_dict = isinstance(spec, dict)
     assert is_dict or isinstance(spec, str), f'assert_shape() expects a pattern string or dict, got {type(spec).__name__}'
@@ -429,9 +442,8 @@ def assert_shape(spec, **assertions):
 
             if is_dict:
                 for name, pattern in spec.items():
-                    arg = bound.arguments.get(name)
-                    if is_tensor(arg):
-                        shape(arg, pattern, **assertions)
+                    if is_tensor(bound.arguments.get(name)):
+                        shape(bound.arguments[name], pattern, **assertions)
             else:
                 arg_name = next(
                     (
@@ -440,9 +452,8 @@ def assert_shape(spec, **assertions):
                     ),
                     None
                 )
-                arg = bound.arguments.get(arg_name)
-                if is_tensor(arg):
-                    shape(arg, spec, **assertions)
+                if is_tensor(bound.arguments.get(arg_name)):
+                    shape(bound.arguments[arg_name], spec, **assertions)
 
             return fn(*args, **kwargs)
 
