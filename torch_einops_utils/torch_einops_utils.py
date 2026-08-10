@@ -9,6 +9,8 @@ from torch.utils._pytree import tree_flatten, tree_unflatten, tree_map
 
 from einops import rearrange, repeat, reduce, pack, unpack
 
+import numpy as np
+
 # helper functions
 
 def exists(v):
@@ -432,3 +434,32 @@ def detach_tensor(
 
 def tree_map_detach(tree, **kwargs):
     return tree_map_tensor(lambda t: detach_tensor(t, **kwargs), tree)
+
+# casting
+
+def cast_tensor(
+    t,
+    dtype = None,
+    device = None,
+    *,
+    error = False
+):
+    if is_tensor(t):
+        return t.to(dtype = dtype, device = device)
+
+    if exists(np) and isinstance(t, np.generic):
+        return torch.as_tensor(t.item(), dtype = dtype, device = device)
+
+    if isinstance(t, (int, float, complex, bool)) or (exists(np) and isinstance(t, np.ndarray)):
+        return torch.as_tensor(t, dtype = dtype, device = device)
+
+    if error:
+        raise TypeError(f'incompatible type for cast_tensor: {type(t)}')
+
+    return t
+
+def cast_item(t):
+    if not is_tensor(t):
+        return t
+
+    return t.item()

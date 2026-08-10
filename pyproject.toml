@@ -33,8 +33,15 @@ Repository = "https://github.com/lucidrains/torch-einops-utils"
 [project.optional-dependencies]
 examples = []
 test = [
-    "pytest"
+    "pytest",
+    "numpy"
 ]
+
+[tool.bumpversion]
+current_version = "0.1.15"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -44,6 +51,12 @@ pythonpath = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "bump-my-version>=1.5.1",
+    "numpy>=2.0.2",
+]
 
 [tool.rye]
 managed = true

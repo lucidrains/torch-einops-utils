@@ -43,7 +43,9 @@ from torch_einops_utils.torch_einops_utils import (
     pad_right_ndim_to_and_expand_as,
     repeat_interleave_to_match,
     detach_tensor,
-    tree_map_detach
+    tree_map_detach,
+    cast_tensor,
+    cast_item
 )
 
 def test_exist():
@@ -494,3 +496,23 @@ def test_tree_map_detach():
     out_tree_preserve = tree_map_detach(tree, preserve_requires_grad=True)
     assert out_tree_preserve[0].requires_grad
     assert out_tree_preserve[1][0].requires_grad
+
+def test_cast_tensor():
+    assert cast_tensor(tensor([1, 2, 3]), dtype = torch.float32).dtype == torch.float32
+    assert cast_tensor(tensor([1, 2, 3]), dtype = torch.float32, device = 'cpu').device.type == 'cpu'
+    assert cast_tensor(1, dtype = torch.float32).dtype == torch.float32
+    assert cast_tensor(1.0, dtype = torch.long).dtype == torch.long
+
+    assert cast_tensor(None) is None
+    assert cast_tensor('hello') == 'hello'
+
+    with pytest.raises(TypeError):
+        cast_tensor('hello', error = True)
+
+def test_cast_item():
+    assert cast_item(tensor(3)) == 3
+    assert cast_item(tensor(3.)) == 3.0
+    assert cast_item(3) == 3
+    assert cast_item(3.0) == 3.0
+    assert cast_item('hello') == 'hello'
+    assert cast_item(None) is None

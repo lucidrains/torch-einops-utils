@@ -84,3 +84,8 @@ from torch_einops_utils.device import (
 from torch_einops_utils.statistics import (
     z_score
 )
+
+from torch_einops_utils.torch_einops_utils import (
+    cast_tensor,
+    cast_item
+)
