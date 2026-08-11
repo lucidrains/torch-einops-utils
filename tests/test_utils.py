@@ -273,6 +273,8 @@ def test_masked_reduce():
     mask = tensor([True, False, True, False])
     assert torch.allclose(masked_reduce(t, mode = 'mean', mask = mask), tensor(2.0))
     assert torch.allclose(masked_reduce(t, mode = 'sum', mask = mask), tensor(4.0))
+    assert torch.allclose(masked_reduce(t, mode = 'none', mask = mask), tensor([1., 0., 3., 0.]))
+    assert torch.allclose(masked_reduce(t, mode = 'none'), t)
 
     with pytest.raises(AssertionError):
         masked_reduce(t, mode = 'invalid', mask = mask)

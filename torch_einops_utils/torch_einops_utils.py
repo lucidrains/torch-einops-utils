@@ -70,14 +70,20 @@ def masked_reduce(
     eps = 1e-5,
     keepdim = False
 ):
-    assert mode in {'mean', 'sum'}, f'unsupported reduction mode {mode}'
+    assert mode in {'mean', 'sum', 'none'}, f'unsupported reduction mode {mode}'
 
     if isinstance(dim, slice):
         dim = tuple(range(t.ndim)[dim])
 
+    if not exists(dim) and keepdim:
+        dim = tuple(range(t.ndim))
+
     dim_kwargs = dict(dim = dim, keepdim = keepdim) if exists(dim) or keepdim else dict()
 
     if not exists(mask):
+        if mode == 'none':
+            return t
+
         fn = getattr(t, mode)
         return fn(**dim_kwargs)
 
@@ -85,7 +91,13 @@ def masked_reduce(
         mask = pad_right_ndim(mask, t.ndim - mask.ndim)
 
     mask = mask.expand_as(t)
-    num = t.masked_fill(~mask, 0).sum(**dim_kwargs)
+
+    masked = t.masked_fill(~mask, 0)
+
+    if mode == 'none':
+        return masked
+
+    num = masked.sum(**dim_kwargs)
 
     if mode == 'sum':
         return num
