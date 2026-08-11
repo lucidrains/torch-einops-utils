@@ -31,7 +31,7 @@ def first(arr):
 def compact(arr):
     return [*filter(exists, arr)]
 
-def maybe(fn):
+def maybe(fn, default = None):
 
     if not exists(fn):
         return identity
@@ -39,7 +39,7 @@ def maybe(fn):
     @wraps(fn)
     def inner(t, *args, **kwargs):
         if not exists(t):
-            return None
+            return default
 
         return fn(t, *args, **kwargs)
 
