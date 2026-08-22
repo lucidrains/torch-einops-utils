@@ -355,6 +355,20 @@ class ParsedShape:
     def axis(self, name):
         return self._indices.get(name)
 
+    def keys(self):
+        return self._dims.keys()
+
+    def values(self):
+        return self._dims.values()
+
+    def items(self):
+        return self._dims.items()
+
+    def get(self, name, default = None):
+        if name == '...':
+            return self._ellipsis if exists(self._ellipsis) else default
+        return self._dims.get(name, default)
+
     def replace(self, **sizes):
         shape = list(self._shape)
 
@@ -388,6 +402,11 @@ class ParsedShape:
         if name not in self._dims:
             raise KeyError(f'axis "{name}" is not in pattern "{self._pattern}"')
         return self._dims[name]
+
+    def __contains__(self, name):
+        if name == '...':
+            return exists(self._ellipsis)
+        return name in self._dims
 
     def __iter__(self):
         if exists(self._selection):
@@ -426,11 +445,47 @@ class ParsedShape:
     def __repr__(self):
         return f'ParsedShape(pattern = {self._pattern!r}, shape = {self._shape!r}, dims = {self._dims!r})'
 
-# decorator
+# assert_shape
 
-def assert_shape(spec, **assertions):
+def _is_pair(spec):
+    return (
+        isinstance(spec, (tuple, list))
+        and len(spec) == 2
+        and is_tensor(spec[0])
+        and isinstance(spec[1], str)
+    )
+
+def assert_shape(spec, *patterns, **assertions):
+    if isinstance(spec, (tuple, list)) and not is_tensor(spec):
+        assert len(patterns) == 0, 'assert_shape() called directly expects a single (tensor, pattern) or list of pairs, got extra positional arguments'
+
+        pairs = (spec,) if _is_pair(spec) else spec
+        assert isinstance(pairs, (list, tuple)) and len(pairs) > 0 and all(_is_pair(p) for p in pairs), \
+            f'assert_shape() called directly expects a (tensor, pattern) pair or list of pairs, got {type(spec).__name__}'
+
+        known = dict(assertions)
+
+        for t, pattern in pairs:
+            _, names, _ = parse_pattern(pattern)
+
+            parsed = shape(t, pattern, **{axis: size for axis, size in known.items() if axis in names})
+
+            for axis, size in parsed.dims.items():
+                known.setdefault(axis, size)
+
+        return
+
     is_dict = isinstance(spec, dict)
-    assert is_dict or isinstance(spec, str), f'assert_shape() expects a pattern string or dict, got {type(spec).__name__}'
+    assert is_dict or isinstance(spec, str), f'assert_shape() expects a (tensor, pattern) pair, list of pairs, pattern string, or dict, got {type(spec).__name__}'
+
+    if is_dict:
+        all_names = set()
+        for pattern in spec.values():
+            _, names, _ = parse_pattern(pattern)
+            all_names.update(names)
+
+        for axis in assertions:
+            assert axis in all_names, f'asserted axis "{axis}" is not in any pattern of {spec}'
 
     def decorator(fn):
         signature = inspect.signature(fn)
@@ -441,9 +496,21 @@ def assert_shape(spec, **assertions):
             bound.apply_defaults()
 
             if is_dict:
+                known = dict(assertions)
+
                 for name, pattern in spec.items():
-                    if is_tensor(bound.arguments.get(name)):
-                        shape(bound.arguments[name], pattern, **assertions)
+                    if not is_tensor(bound.arguments.get(name)):
+                        continue
+
+                    _, names, _ = parse_pattern(pattern)
+
+                    try:
+                        parsed = shape(bound.arguments[name], pattern, **{axis: size for axis, size in known.items() if axis in names})
+                    except ShapeError as err:
+                        raise ShapeError(f'argument "{name}": {err}') from None
+
+                    for axis, size in parsed.dims.items():
+                        known.setdefault(axis, size)
             else:
                 arg_name = next(
                     (

@@ -353,6 +353,34 @@ def test_shape_matches():
     with pytest.raises(TypeError):
         parsed_x.matches((2, 5))
 
+def test_shape_mapping_protocol():
+    from einops import rearrange
+
+    t = torch.randn(2, 48, 3)
+    parsed = shape(t, 'b (h w) d', h = 8)
+
+    assert parsed.keys() == {'b': 2, 'h': 8, 'w': 6, 'd': 3}.keys()
+    assert list(parsed.values()) == [2, 8, 6, 3]
+    assert dict(parsed.items()) == {'b': 2, 'h': 8, 'w': 6, 'd': 3}
+    assert dict(**parsed) == {'b': 2, 'h': 8, 'w': 6, 'd': 3}
+
+    out = rearrange(t, 'b (h w) d -> b h w d', **parsed)
+    assert out.shape == (2, 8, 6, 3)
+
+def test_shape_contains_and_get():
+    parsed = shape(torch.randn(2, 48, 3), 'b (h w) d')
+
+    assert 'b' in parsed
+    assert 'h' not in parsed
+    assert '...' not in parsed
+    assert parsed.get('b') == 2
+    assert parsed.get('h', 1) == 1
+    assert not exists(parsed.get('h'))
+
+    parsed_ellipsis = shape(torch.randn(2, 3, 4), 'b ...')
+    assert '...' in parsed_ellipsis
+    assert parsed_ellipsis.get('...') == [3, 4]
+
 # replace
 
 def test_shape_replace():
@@ -555,6 +583,36 @@ def test_assert_shape_dict():
     with pytest.raises(ShapeError):
         fn(torch.randn(2, 3))
 
+def test_assert_shape_dict_cross_argument_consistency():
+    @assert_shape({'x': 'b s d', 'mask': 'b s'})
+    def fn(x, mask = None):
+        return x, mask
+
+    fn(torch.randn(2, 3, 4), mask = torch.randn(2, 3))
+
+    with pytest.raises(ShapeError) as err:
+        fn(torch.randn(2, 3, 4), mask = torch.randn(5, 3))
+
+    assert 'mask' in str(err.value)
+
+    with pytest.raises(ShapeError):
+        fn(torch.randn(2, 3, 4), mask = torch.randn(2, 9))
+
+def test_assert_shape_dict_assertions_filtered_per_pattern():
+    @assert_shape({'x': 'b s d', 'mask': 'b s'}, d = 512)
+    def fn(x, mask = None):
+        return x, mask
+
+    fn(torch.randn(2, 3, 512), mask = torch.randn(2, 3))
+
+    with pytest.raises(ShapeError):
+        fn(torch.randn(2, 3, 128), mask = torch.randn(2, 3))
+
+    with pytest.raises(AssertionError):
+        @assert_shape({'x': 'b s d'}, nope = 4)
+        def fn_bad(x):
+            return x
+
 def test_assert_shape_dict_skips_non_tensors():
     @assert_shape({'x': 'b s d', 'mask': 'b s'})
     def fn(x, mask = None):
@@ -602,6 +660,55 @@ def test_assert_shape_invalid_spec():
         @assert_shape(3)
         def fn(x):
             return x
+
+def test_assert_shape_direct():
+    assert_shape((torch.randn(2, 3, 4), 'b s d'))
+
+    with pytest.raises(ShapeError):
+        assert_shape((torch.randn(2, 3), 'b s d'))
+
+def test_assert_shape_direct_cross_consistency():
+    assert_shape([(torch.randn(2, 3, 4), 'b s d'), (torch.randn(2, 3), 'b s')])
+
+    with pytest.raises(ShapeError):
+        assert_shape([(torch.randn(2, 3, 4), 'b s d'), (torch.randn(5, 3), 'b s')])
+
+    with pytest.raises(ShapeError):
+        assert_shape([(torch.randn(2, 3, 4), 'b s d'), (torch.randn(2, 9), 'b s')])
+
+def test_assert_shape_direct_single_pair_list():
+    assert_shape([torch.randn(2, 3, 4), 'b s d'])
+
+    with pytest.raises(ShapeError):
+        assert_shape([torch.randn(2, 3), 'b s d'])
+
+def test_assert_shape_direct_assertions():
+    assert_shape((torch.randn(2, 3, 512), 'b s d'), d = 512)
+
+    with pytest.raises(ShapeError):
+        assert_shape((torch.randn(2, 3, 128), 'b s d'), d = 512)
+
+def test_assert_shape_direct_invalid():
+    with pytest.raises(AssertionError):
+        assert_shape((torch.randn(2, 3, 4), 'b s d', torch.randn(2, 3)))
+
+    with pytest.raises(AssertionError):
+        assert_shape((torch.randn(2, 3, 4), 3))
+
+    with pytest.raises(AssertionError):
+        assert_shape(torch.randn(2, 3, 4))
+
+    with pytest.raises(AssertionError):
+        assert_shape([])
+
+    with pytest.raises(AssertionError):
+        assert_shape([torch.randn(2, 3, 4), 'b s d', torch.randn(2, 3)])
+
+    with pytest.raises(AssertionError):
+        assert_shape([(torch.randn(2, 3, 4), 'b s d'), 'b s'])
+
+    with pytest.raises(AssertionError):
+        assert_shape((torch.randn(2, 3, 4), 'b s d'), (torch.randn(2, 3), 'b s'))
 
 def test_torch_compile():
     def compute(x):
