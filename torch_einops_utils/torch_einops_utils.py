@@ -92,7 +92,9 @@ def masked_reduce(
 
     mask = mask.expand_as(t)
 
-    masked = t.masked_fill(~mask, 0)
+    # support continuous loss weights
+
+    masked = t * mask
 
     if mode == 'none':
         return masked
