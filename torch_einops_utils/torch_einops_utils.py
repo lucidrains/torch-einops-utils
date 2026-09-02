@@ -496,3 +496,30 @@ def cast_item(t):
         return t
 
     return t.item()
+
+# clamp
+
+def clamp(
+    t,
+    lo = None,
+    hi = None,
+    *,
+    inplace = False
+):
+    if not exists(lo) and not exists(hi):
+        return t
+
+    assert not (exists(lo) and exists(hi) and lo > hi), 'invalid clamp bounds'
+
+    if is_tensor(t):
+        fn = t.clamp_ if inplace else t.clamp
+        return fn(min = lo, max = hi)
+
+    if isinstance(t, np.ndarray):
+        return np.clip(t, lo, hi, out = t) if inplace else np.clip(t, lo, hi)
+
+    assert isinstance(t, (int, float)), f'incompatible type for clamp: {type(t)}'
+
+    t = max(t, lo) if exists(lo) else t
+    t = min(t, hi) if exists(hi) else t
+    return t

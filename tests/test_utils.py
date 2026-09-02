@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import torch
 from torch import tensor
 
@@ -45,7 +46,8 @@ from torch_einops_utils.torch_einops_utils import (
     detach_tensor,
     tree_map_detach,
     cast_tensor,
-    cast_item
+    cast_item,
+    clamp
 )
 
 def test_exist():
@@ -518,3 +520,33 @@ def test_cast_item():
     assert cast_item(3.0) == 3.0
     assert cast_item('hello') == 'hello'
     assert cast_item(None) is None
+
+@pytest.mark.parametrize('t, lo, hi, expected, inplace', [
+    (5, 0, 3, 3, False),
+    (1.5, 0., 1., 1.0, False),
+    (5, 10, None, 10, False),
+    (5, None, 3, 3, False),
+    (5, None, None, 5, False),
+    (5, 0, 3, 3, True),
+    (tensor([1., 2., 3., 4.]), 2., 3., tensor([2., 2., 3., 3.]), False),
+    (tensor([1., 2., 3., 4.]), 2., 3., tensor([2., 2., 3., 3.]), True),
+    (tensor([1, 2, 3, 4]), 2, 3, tensor([2, 2, 3, 3]), True),
+    (tensor([1., 2., 3., 4.]), None, 3., tensor([1., 2., 3., 3.]), True),
+    (tensor([1., 2., 3., 4.]), None, None, tensor([1., 2., 3., 4.]), False),
+    (np.array([1., 2., 3., 4.]), 2., 3., np.array([2., 2., 3., 3.]), False),
+    (np.array([1., 2., 3., 4.]), 2., 3., np.array([2., 2., 3., 3.]), True),
+    (np.array([1., 2., 3., 4.]), None, 3., np.array([1., 2., 3., 3.]), True),
+])
+
+def test_clamp(t, lo, hi, expected, inplace):
+    out = clamp(t, lo = lo, hi = hi, inplace = inplace)
+
+    if isinstance(out, (int, float)):
+        assert out == expected
+    elif torch.is_tensor(out):
+        assert torch.allclose(out, expected)
+    elif isinstance(out, np.ndarray):
+        assert np.array_equal(out, expected)
+
+    if inplace and not isinstance(t, (int, float)):
+        assert out is t

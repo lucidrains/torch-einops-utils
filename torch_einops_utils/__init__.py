@@ -88,5 +88,6 @@ from torch_einops_utils.statistics import (
 
 from torch_einops_utils.torch_einops_utils import (
     cast_tensor,
-    cast_item
+    cast_item,
+    clamp
 )
