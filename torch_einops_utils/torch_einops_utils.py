@@ -45,6 +45,25 @@ def maybe(fn, default = None):
 
     return inner
 
+def once(fn):
+    called = False
+
+    @wraps(fn)
+    def inner(*args, **kwargs):
+        nonlocal called
+
+        if called:
+            return None
+
+        result = fn(*args, **kwargs)
+
+        if result:
+            called = True
+
+        return result
+
+    return inner
+
 def safe(fn):
     @wraps(fn)
     def inner(tensors, *args, **kwargs):
