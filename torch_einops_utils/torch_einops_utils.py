@@ -472,9 +472,9 @@ def tree_map_detach(tree, **kwargs):
 
 def cast_tensor(
     t,
+    *,
     dtype = None,
     device = None,
-    *,
     error = False
 ):
     if is_tensor(t):
@@ -483,7 +483,7 @@ def cast_tensor(
     if exists(np) and isinstance(t, np.generic):
         return torch.as_tensor(t.item(), dtype = dtype, device = device)
 
-    if isinstance(t, (int, float, complex, bool)) or (exists(np) and isinstance(t, np.ndarray)):
+    if isinstance(t, (int, float, complex, bool, list, tuple)) or (exists(np) and isinstance(t, np.ndarray)):
         return torch.as_tensor(t, dtype = dtype, device = device)
 
     if error:

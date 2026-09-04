@@ -506,6 +506,10 @@ def test_cast_tensor():
     assert cast_tensor(tensor([1, 2, 3]), dtype = torch.float32, device = 'cpu').device.type == 'cpu'
     assert cast_tensor(1, dtype = torch.float32).dtype == torch.float32
     assert cast_tensor(1.0, dtype = torch.long).dtype == torch.long
+    assert cast_tensor([1, 2, 3]).shape == (3,)
+    assert cast_tensor((1.0, 2.0), dtype = torch.float32).dtype == torch.float32
+    assert cast_tensor([1, 2, 3], device = 'cpu').device.type == 'cpu'
+    assert cast_tensor(tensor([1, 2, 3]), device = torch.device('cpu')).device.type == 'cpu'
 
     assert cast_tensor(None) is None
     assert cast_tensor('hello') == 'hello'
