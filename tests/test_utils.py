@@ -319,6 +319,17 @@ def test_z_score():
     assert out_3d_1dmask.shape == (2, 3, 4)
     assert (out_3d_1dmask[1] == 0.0).all()
 
+    # return_stats / return_only_stats
+    t = tensor([1., 2., 3., 4., 5.])
+    mask = tensor([True, True, True, False, False])
+
+    out, stats = z_score(t, return_stats = True)
+    assert torch.allclose(out, z_score(t))
+    assert torch.allclose(stats.mean, t.mean()) and torch.allclose(stats.var, t.var(correction = 0))
+
+    stats = z_score(t, mask = mask, return_only_stats = True)
+    assert torch.allclose(stats.mean, t[:3].mean()) and torch.allclose(stats.var, t[:3].var(correction = 0))
+
 def test_exclusive_cumsum():
     t = tensor([1., 2., 3., 4.])
     assert torch.allclose(exclusive_cumsum(t), tensor([0., 1., 3., 6.]))
