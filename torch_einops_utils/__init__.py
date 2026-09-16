@@ -91,3 +91,7 @@ from torch_einops_utils.torch_einops_utils import (
     cast_item,
     clamp
 )
+
+from torch_einops_utils.python_utils import (
+    maybe_return
+)
