@@ -565,3 +565,52 @@ def test_clamp(t, lo, hi, expected, inplace):
 
     if inplace and not isinstance(t, (int, float)):
         assert out is t
+
+
+def test_entropy():
+    from torch_einops_utils import entropy
+    import math
+
+    # prob input
+    p = tensor([0.5, 0.5])
+    assert torch.allclose(entropy(p), tensor(math.log(2)), atol = 1e-4)
+
+    # logits input
+    l = tensor([0.0, 0.0])
+    assert torch.allclose(entropy(logits = l), tensor(math.log(2)), atol = 1e-4)
+
+    # deterministic: H = 0
+    p_det = tensor([1.0, 0.0])
+    assert torch.allclose(entropy(p_det), tensor(0.0), atol = 1e-4)
+
+    # unreduced (reduce = False)
+    p_batch = tensor([[0.5, 0.5], [1.0, 0.0]])
+    ent_unreduced = entropy(p_batch, reduce = False)
+    assert ent_unreduced.shape == (2,)
+    assert torch.allclose(ent_unreduced, tensor([math.log(2), 0.0]), atol = 1e-4)
+
+    # unreduced with logits
+    l_batch = tensor([[0.0, 0.0], [100.0, -100.0]])
+    ent_logits_unreduced = entropy(logits = l_batch, reduce = False)
+    assert ent_logits_unreduced.shape == (2,)
+    assert torch.allclose(ent_logits_unreduced, tensor([math.log(2), 0.0]), atol = 1e-4)
+
+    # masked mean
+    mask = tensor([True, False])
+    assert torch.allclose(entropy(p_batch, mask = mask), tensor(math.log(2)), atol = 1e-4)
+
+    # 3D tensor with 2D mask
+    p_3d = tensor([[[0.5, 0.5], [0.5, 0.5]], [[1.0, 0.0], [0.5, 0.5]]]) # (2, 2, 2)
+    mask_2d = tensor([[True, True], [False, True]])
+    assert torch.allclose(entropy(p_3d, mask = mask_2d), tensor(math.log(2)), atol = 1e-4)
+
+    # autograd
+    logits_grad = torch.randn(2, 4, 3, requires_grad = True)
+    ent_loss = entropy(logits = logits_grad)
+    ent_loss.backward()
+    assert logits_grad.grad is not None
+
+    prob_grad = torch.softmax(torch.randn(2, 4, 3), dim = -1).requires_grad_()
+    ent_loss = entropy(prob_grad)
+    ent_loss.backward()
+    assert prob_grad.grad is not None

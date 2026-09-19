@@ -30,3 +30,28 @@ def z_score(
         return out
 
     return out, stats
+
+# entropy
+
+def entropy(
+    prob = None,
+    dim = -1,
+    mask = None,
+    eps = 1e-20,
+    reduce = True,
+    logits = None
+):
+    assert exists(prob) ^ exists(logits), 'either prob or logits must be passed'
+
+    if exists(logits):
+        prob = logits.softmax(dim = dim)
+        log_prob = logits.log_softmax(dim = dim)
+    else:
+        log_prob = prob.clamp(min = eps).log()
+
+    ent = (-prob * log_prob).sum(dim = dim)
+
+    if not reduce:
+        return ent
+
+    return masked_mean(ent, mask = mask)

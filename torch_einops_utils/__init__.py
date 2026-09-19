@@ -84,7 +84,8 @@ from torch_einops_utils.device import (
 
 from torch_einops_utils.statistics import (
     z_score,
-    ZScoreStats
+    ZScoreStats,
+    entropy
 )
 
 from torch_einops_utils.torch_einops_utils import (
