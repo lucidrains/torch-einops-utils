@@ -59,3 +59,29 @@ def test_maybe_return():
     out = fn(tokens, return_hiddens = True)
     assert torch.equal(out.tokens, tokens)
     assert torch.equal(out.hiddens, tokens + 1)
+
+def test_maybe_return_advanced():
+    # scalar tensor return when not requested
+    @maybe_return('loss_breakdown', primary = lambda kw: 'loss' if kw.get('return_loss', True) else 'logits')
+    def model(x, return_loss = True, return_loss_breakdown = False):
+        if not return_loss:
+            return torch.randn(2, 4)
+        loss = torch.tensor(1.5)
+        if not return_loss_breakdown:
+            return loss
+        return loss, {'loss_breakdown': [1.0, 0.5]}
+
+    out1 = model(None)
+    assert isinstance(out1, torch.Tensor) and out1.item() == 1.5
+
+    out2 = model(None, return_loss_breakdown = True)
+    assert out2.loss.item() == 1.5
+    assert out2.loss_breakdown == [1.0, 0.5]
+    loss, breakdown = out2
+    assert loss.item() == 1.5
+
+    out3 = model(None, return_loss = False)
+    assert out3.shape == (2, 4)
+
+    out4 = model(None, return_loss = False, return_loss_breakdown = True)
+    assert hasattr(out4, 'logits')

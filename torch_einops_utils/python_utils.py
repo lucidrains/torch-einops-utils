@@ -4,9 +4,10 @@ from collections import namedtuple
 from functools import wraps
 from inspect import signature
 
-# decorator for a function returning (primary, *outputs)
+# decorator for a function returning the primary output, or `(primary, *outputs)`
 # `@maybe_return('memories', 'hiddens')` returns just the primary by default
 # `return_memories = True` returns `(tokens, memories)`, while `return_all = True` returns all outputs as a namedtuple
+# outputs may be returned positionally, aligned with the field names, or as a single dict keyed by field name
 # the decorated function may declare any `return_{field}` in its signature to only compute that output when it is requested
 
 def maybe_return(*field_names, primary = 'tokens', flag = 'return_all'):
@@ -15,11 +16,6 @@ def maybe_return(*field_names, primary = 'tokens', flag = 'return_all'):
         accepted_keys = {f'return_{field}' for field in field_names if f'return_{field}' in sig.parameters}
 
         output_types = {}
-
-        def get_output_type(fields):
-            if fields not in output_types:
-                output_types[fields] = namedtuple('Output', (primary, *fields))
-            return output_types[fields]
 
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -36,14 +32,25 @@ def maybe_return(*field_names, primary = 'tokens', flag = 'return_all'):
             fn_kwargs.update(kwargs)
 
             out = fn(*args, **fn_kwargs)
-            primary_out, *rest = out
 
             requested = tuple(field for field in field_names if returns[field])
 
             if not requested:
-                return primary_out
+                return out[0] if isinstance(out, tuple) else out
 
-            return get_output_type(requested)(primary_out, *(rest[field_names.index(field)] for field in requested))
+            primary_out, *rest = out if isinstance(out, tuple) else (out,)
+
+            # a lone dict names its outputs, positional outputs align with the field names, missing fields are `None`
+
+            fields = rest[0] if len(rest) == 1 and isinstance(rest[0], dict) else dict(zip(field_names, rest))
+
+            primary_name = primary(fn_kwargs) if callable(primary) else primary
+            key = (primary_name, requested)
+
+            if key not in output_types:
+                output_types[key] = namedtuple('Output', (primary_name, *requested))
+
+            return output_types[key](primary_out, *(fields.get(field) for field in requested))
 
         return wrapper
 
