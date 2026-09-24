@@ -130,8 +130,18 @@ def test_pad_at_dim_to_multiple():
     assert padded.shape == (3, 5, 6)
     assert torch.allclose(inverse(padded), t)
 
+    padded, inverse = pad_at_dim_to_multiple(t, 4, dim = 1)
+    moved = padded.permute(1, 0, 2)
+    assert torch.allclose(inverse(moved, dim = 0), t.permute(1, 0, 2))
+    assert torch.allclose(inverse(moved, dim = 0), moved[:5])
+
+    padded, inverse = pad_at_dim_to_multiple(t, 4, dim = 1, left = True)
+    moved = padded.permute(1, 2, 0)
+    assert torch.allclose(inverse(moved, dim = 0), t.permute(1, 2, 0))
+
     out = pad_at_dim_to_multiple(t, 4, dim = 1, return_all = True)
     assert out.pad_len == 3
+    assert out.did_pad is True
     assert out.mask.shape == out.padded.shape
     assert out.mask.dtype == torch.bool
     assert out.mask[:, :5].all()
@@ -153,6 +163,15 @@ def test_pad_at_dim_to_multiple():
     assert pad == 0
     assert mask.all()
     assert inverse(padded) is t
+
+    padded, inverse, did_pad = pad_at_dim_to_multiple(t, 4, dim = 1, return_did_pad = True)
+    assert did_pad is True
+    assert padded.shape == (3, 8, 2)
+    assert inverse(padded).shape == t.shape
+
+    padded, inverse, did_pad = pad_at_dim_to_multiple(t, 5, dim = 1, return_did_pad = True)
+    assert did_pad is False
+    assert padded is t
 
     with pytest.raises(AssertionError):
         pad_at_dim_to_multiple(t, 0)

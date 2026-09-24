@@ -321,7 +321,7 @@ def pad_right_at_dim_to(t, length: int, dim = -1, **kwargs):
 
     return pad_right_at_dim(t, length - curr_len, dim = dim, **kwargs)
 
-@maybe_return('pad_len', 'mask', primary = ('padded', 'inverse'))
+@maybe_return('pad_len', 'mask', 'did_pad', primary = ('padded', 'inverse'))
 def pad_at_dim_to_multiple(
     t,
     multiple: int,
@@ -330,7 +330,8 @@ def pad_at_dim_to_multiple(
     left = False,
     value = 0.,
     return_pad_len = False,
-    return_mask = False
+    return_mask = False,
+    return_did_pad = False
 ):
     assert multiple > 0, f'multiple must be positive, got {multiple}'
 
@@ -340,10 +341,13 @@ def pad_at_dim_to_multiple(
 
     padded = pad_at_dim(t, pad_side, dim = dim, value = value) if pad > 0 else t
 
-    def inverse(padded_t):
+    pad_dim = dim
+
+    def inverse(padded_t, dim = None):
         if pad == 0:
             return padded_t
 
+        dim = default(dim, pad_dim)
         slc = slice(pad, None) if left else slice(None, -pad)
         return slice_at_dim(padded_t, slc, dim = dim)
 
@@ -351,6 +355,9 @@ def pad_at_dim_to_multiple(
 
     if return_pad_len:
         fields['pad_len'] = pad
+
+    if return_did_pad:
+        fields['did_pad'] = pad > 0
 
     if return_mask:
         # `True` on the real content, `False` on the padding
