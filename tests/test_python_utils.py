@@ -60,6 +60,27 @@ def test_maybe_return():
     assert torch.equal(out.tokens, tokens)
     assert torch.equal(out.hiddens, tokens + 1)
 
+def test_maybe_return_multiple_primary():
+    @maybe_return('offset', primary = ('padded', 'inverse'))
+    def pad(t, return_offset = False):
+        padded = torch.nn.functional.pad(t, (0, 1))
+        inverse = lambda x: x[..., :-1]
+        return padded, inverse, {'offset': 1} if return_offset else {}
+
+    padded, inverse = pad(torch.randn(2, 4))
+    assert padded.shape == (2, 5)
+    assert inverse(padded).shape == (2, 4)
+
+    out = pad(torch.randn(2, 4), return_offset = True)
+    assert out.padded.shape == (2, 5)
+    assert out.offset == 1
+
+    padded, inverse, offset = pad(torch.randn(2, 4), return_offset = True)
+    assert offset == 1
+
+    out = pad(torch.randn(2, 4), return_all = True)
+    assert out.padded.shape == (2, 5) and out.offset == 1
+
 def test_maybe_return_advanced():
     # scalar tensor return when not requested
     @maybe_return('loss_breakdown', primary = lambda kw: 'loss' if kw.get('return_loss', True) else 'logits')

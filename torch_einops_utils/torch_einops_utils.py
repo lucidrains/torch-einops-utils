@@ -9,6 +9,8 @@ from torch.utils._pytree import tree_flatten, tree_unflatten, tree_map
 
 from einops import rearrange, repeat, reduce, pack, unpack
 
+from torch_einops_utils.python_utils import maybe_return
+
 import numpy as np
 
 # helper functions
@@ -318,6 +320,46 @@ def pad_right_at_dim_to(t, length: int, dim = -1, **kwargs):
         return t
 
     return pad_right_at_dim(t, length - curr_len, dim = dim, **kwargs)
+
+@maybe_return('pad_len', 'mask', primary = ('padded', 'inverse'))
+def pad_at_dim_to_multiple(
+    t,
+    multiple: int,
+    *,
+    dim = -1,
+    left = False,
+    value = 0.,
+    return_pad_len = False,
+    return_mask = False
+):
+    assert multiple > 0, f'multiple must be positive, got {multiple}'
+
+    length = t.shape[dim]
+    pad = -length % multiple
+    pad_side = (pad, 0) if left else (0, pad)
+
+    padded = pad_at_dim(t, pad_side, dim = dim, value = value) if pad > 0 else t
+
+    def inverse(padded_t):
+        if pad == 0:
+            return padded_t
+
+        slc = slice(pad, None) if left else slice(None, -pad)
+        return slice_at_dim(padded_t, slc, dim = dim)
+
+    fields = {}
+
+    if return_pad_len:
+        fields['pad_len'] = pad
+
+    if return_mask:
+        # `True` on the real content, `False` on the padding
+
+        mask = torch.ones(t.shape, dtype = torch.bool, device = t.device)
+        mask = pad_at_dim(mask, pad_side, dim = dim, value = False) if pad > 0 else mask
+        fields['mask'] = mask
+
+    return padded, inverse, fields
 
 # shifting
 

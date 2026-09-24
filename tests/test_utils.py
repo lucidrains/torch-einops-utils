@@ -18,6 +18,7 @@ from torch_einops_utils.torch_einops_utils import (
     pad_right_at_dim,
     pad_left_at_dim_to,
     pad_right_at_dim_to,
+    pad_at_dim_to_multiple,
     pad_sequence,
     pad_sequence_and_cat,
     lens_to_mask,
@@ -101,6 +102,60 @@ def test_pad_at_dim():
 
     padded = pad_right_at_dim_to(t, 6, dim = 1)
     assert padded.shape == (3, 6, 1)
+
+def test_pad_at_dim_to_multiple():
+    t = torch.randn(3, 5, 2)
+
+    padded, inverse = pad_at_dim_to_multiple(t, 4, dim = 1)
+    assert padded.shape == (3, 8, 2)
+    assert torch.allclose(padded[:, :5], t)
+    assert torch.allclose(padded[:, 5:], torch.zeros(3, 3, 2))
+    assert torch.allclose(inverse(padded), t)
+
+    padded, inverse = pad_at_dim_to_multiple(t, 4, dim = 1, left = True, value = 1.)
+    assert padded.shape == (3, 8, 2)
+    assert torch.allclose(padded[:, 3:], t)
+    assert torch.allclose(padded[:, :3], torch.ones(3, 3, 2))
+    assert torch.allclose(inverse(padded), t)
+
+    padded, inverse = pad_at_dim_to_multiple(t, 5, dim = 1)
+    assert padded is t
+    assert inverse(padded) is t
+
+    padded, inverse = pad_at_dim_to_multiple(t, 2, dim = 1)
+    assert padded.shape == (3, 6, 2)
+    assert torch.allclose(inverse(padded), t)
+
+    padded, inverse = pad_at_dim_to_multiple(t, 6, dim = -1)
+    assert padded.shape == (3, 5, 6)
+    assert torch.allclose(inverse(padded), t)
+
+    out = pad_at_dim_to_multiple(t, 4, dim = 1, return_all = True)
+    assert out.pad_len == 3
+    assert out.mask.shape == out.padded.shape
+    assert out.mask.dtype == torch.bool
+    assert out.mask[:, :5].all()
+    assert not out.mask[:, 5:].any()
+    assert torch.allclose(out.padded[out.mask], t.reshape(-1))
+    assert torch.allclose(out.inverse(out.padded), t)
+
+    padded, inverse, pad = pad_at_dim_to_multiple(t, 4, dim = 1, return_pad_len = True)
+    assert pad == 3
+    assert inverse(padded).shape == t.shape
+
+    padded, inverse, mask = pad_at_dim_to_multiple(t, 4, dim = 1, left = True, return_mask = True)
+    assert mask[:, 3:].all()
+    assert not mask[:, :3].any()
+    assert torch.allclose(padded[mask], t.reshape(-1))
+    assert torch.allclose(inverse(padded), t)
+
+    padded, inverse, pad, mask = pad_at_dim_to_multiple(t, 5, dim = 1, return_pad_len = True, return_mask = True)
+    assert pad == 0
+    assert mask.all()
+    assert inverse(padded) is t
+
+    with pytest.raises(AssertionError):
+        pad_at_dim_to_multiple(t, 0)
 
 def test_tree_flatten_with_inverse():
     tree = (1, (2, 3), 4)

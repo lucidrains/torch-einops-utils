@@ -44,6 +44,7 @@ from torch_einops_utils.torch_einops_utils import (
     pad_right_at_dim,
     pad_left_at_dim_to,
     pad_right_at_dim_to,
+    pad_at_dim_to_multiple,
     pad_sequence,
     pad_sequence_and_cat,
     shift,
