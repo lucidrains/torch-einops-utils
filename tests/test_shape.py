@@ -7,6 +7,7 @@ from torch_einops_utils.shape import (
     ParsedShape,
     ShapeError,
     shape,
+    size,
     is_shape,
     assert_shape
 )
@@ -657,6 +658,16 @@ def test_shape_bracket_select_multiple():
     y, x = shape(torch.randn(2, 3, 5, 7), 'b h [y] [x]')
     assert (y, x) == (5, 7)
 
+    # bracketed axes can be separated by unselected named axes
+
+    b, i, j = shape(t, '[b] h [i j]')
+    assert (b, i, j) == (2, 63, 63)
+
+    # ... and adjacent
+
+    i, j = shape(torch.randn(63, 63), '[i] [j]')
+    assert (i, j) == (63, 63)
+
 def test_shape_bracket_select_with_ellipsis():
     t = torch.randn(2, 3, 10, 20, 4, 5)
 
@@ -702,6 +713,71 @@ def test_shape_bracket_does_not_conflict_with_arrow():
 
     with pytest.raises(AssertionError):
         shape(torch.randn(2, 3), 'b n -> [n]')
+
+# scalar extraction
+
+def test_shape_scalar_extraction():
+    t = torch.randn(2, 3, 4)
+
+    n = int(shape(t, 'b [n] d'))
+    assert n == 3
+    assert isinstance(n, int)
+
+    l = int(shape(t, '... [l]'))
+    assert l == 4
+
+    # a lone axis needs no bracket
+
+    n = int(shape(t, 'b n d -> n'))
+    assert n == 3
+
+    # the index protocol composes with indexing and range
+
+    assert list(range(shape(t, 'b [n] d'))) == [0, 1, 2]
+    assert (10, 20, 30, 40, 50)[shape(t, '... [l]')] == 50
+    assert torch.empty(shape(t, 'b [n] d')).shape == (3,)
+
+def test_shape_scalar_extraction_errors():
+    t = torch.randn(2, 3, 4)
+
+    with pytest.raises(TypeError):
+        int(shape(t, 'b n d'))
+
+    with pytest.raises(TypeError):
+        int(shape(t, 'b [i] [j]'))
+
+    with pytest.raises(TypeError):
+        int(shape(torch.tensor(3.), '...'))
+
+def test_shape_scalar_extraction_torch_compile():
+    def compute(x):
+        return x * size(x, 'b [n] d')
+
+    t = torch.randn(2, 3, 4)
+    out = torch.compile(compute)(t)
+    assert out.shape == (2, 3, 4)
+    assert torch.allclose(out, t * 3)
+
+def test_size():
+    t = torch.randn(2, 3, 4)
+
+    assert size(t, 'b [n] d') == 3
+    assert size(t, '... [l]') == 4
+    assert size(t, 'b n d -> n') == 3
+
+    assert size(t, 'b [n] d', n = 3) == 3
+
+    with pytest.raises(ShapeError):
+        size(t, 'b [n] d', n = 16)
+
+    with pytest.raises(ShapeError):
+        size(t, 'b n')
+
+    with pytest.raises(TypeError):
+        size(t, 'b n d')
+
+    with pytest.raises(TypeError):
+        size(t, 'b [i] [j]')
 
 @pytest.mark.parametrize('pattern', [
     'b [n',

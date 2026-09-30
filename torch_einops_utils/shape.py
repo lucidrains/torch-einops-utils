@@ -353,6 +353,13 @@ def is_shape(
 
     return exists(shape(t, pattern, throw_error = False, **assertions))
 
+def size(
+    t,
+    pattern,
+    **assertions
+) -> int:
+    return int(shape(t, pattern, **assertions))
+
 # parsed shape
 
 def _extract_selection(tokens, selection, dims, indices, ellipsis):
@@ -494,6 +501,17 @@ class ParsedShape:
 
     def __len__(self):
         return sum(1 for _ in self)
+
+    # int protocol - a parsed shape unpacking to a single dim can be used directly
+    # e.g. `num_tokens = size(logits, '... [l]')`
+
+    def __index__(self):
+        if self.ndim != 1:
+            raise TypeError(f'cannot interpret shape {self._shape} as an int - expected exactly one dim, got {self.ndim}')
+
+        return self._shape[0]
+
+    __int__ = __index__
 
     def __eq__(self, other):
         if isinstance(other, ParsedShape):
