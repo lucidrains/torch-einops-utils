@@ -111,11 +111,13 @@ def test_shape_ellipsis():
     assert parsed['...'] == [3, 4, 5]
     assert parsed.ndim == 5
 
-    b, rest, d = parsed
+    # iteration unpacks the flat shape
+
+    b, *rest, d = parsed
     assert b == 2
     assert rest == [3, 4, 5]
     assert d == 6
-    assert len(parsed) == 3
+    assert len(parsed) == 5
 
 def test_shape_ellipsis_zero_dims():
     t = torch.randn(2, 3)
@@ -124,6 +126,8 @@ def test_shape_ellipsis_zero_dims():
     assert parsed.b == 2
     assert parsed.d == 3
     assert parsed.ellipsis == []
+    assert tuple(parsed) == (2, 3)
+    assert len(parsed) == 2
 
 def test_shape_ellipsis_mismatch():
     t = torch.randn(2, 3, 4)
@@ -136,12 +140,12 @@ def test_shape_ellipsis_mismatch():
 
     parsed = shape(t, 'b ...')
     assert parsed.ellipsis == [3, 4]
-    b, rest = parsed
+    b, *rest = parsed
     assert b == 2 and rest == [3, 4]
 
     parsed = shape(t, '... d')
     assert parsed.ellipsis == [2, 3]
-    rest, d = parsed
+    *rest, d = parsed
     assert rest == [2, 3] and d == 4
 
 def test_shape_named_ellipsis():
@@ -155,12 +159,13 @@ def test_shape_named_ellipsis():
     assert parsed['f'] == [4, 5]
     assert parsed['...'] == [10, 20, 30]
 
-    b, t_val, rest, f = parsed
+    b, t_val, *rest, f1, f2 = parsed
     assert b == 2
     assert t_val == 3
     assert rest == [10, 20, 30]
-    assert f == [4, 5]
-    assert len(parsed) == 4
+    assert (f1, f2) == (4, 5)
+    assert parsed.f == [4, 5]
+    assert len(parsed) == 7
 
     parsed_assert = shape(t, 'b t ... f...2', f = (4, 5))
     assert parsed_assert.f == [4, 5]
@@ -176,7 +181,7 @@ def test_shape_fixed_length_ellipsis_unnamed_and_named():
     assert parsed.spatial == [3, 4]
     assert parsed.d == 5
 
-    b, spatial, d = parsed
+    b, *spatial, d = parsed
     assert b == 2 and spatial == [3, 4] and d == 5
 
     parsed2 = shape(t, 'b ...2 d')
@@ -184,7 +189,7 @@ def test_shape_fixed_length_ellipsis_unnamed_and_named():
     assert parsed2.ellipsis == [3, 4]
     assert parsed2.d == 5
 
-    b2, rest, d2 = parsed2
+    b2, *rest, d2 = parsed2
     assert b2 == 2 and rest == [3, 4] and d2 == 5
 
     assert parsed.replace(spatial = (100, 200)) == (2, 100, 200, 5)
@@ -305,6 +310,8 @@ def test_shape_zero_dim_tensors():
     assert parsed_scalar.shape == ()
     assert parsed_scalar.ellipsis == []
     assert parsed_scalar.total == 1
+    assert tuple(parsed_scalar) == ()
+    assert len(parsed_scalar) == 0
 
     t_empty = torch.empty(2, 0, 4)
     parsed_empty = shape(t_empty, 'b s d')
@@ -316,6 +323,63 @@ def test_shape_zero_dim_tensors():
     parsed_solve_zero = shape(t_empty, 'b (s1 s2) d', s1 = 0)
     assert parsed_solve_zero.s1 == 0
     assert parsed_solve_zero.s2 == 0
+
+# unpacking
+
+def test_shape_unpacking_is_the_flat_shape():
+    parsed = shape(torch.randn(2, 3, 4), 'b ... d')
+
+    # unpacking mirrors `parsed.shape`, with `len(parsed) == parsed.ndim`
+
+    assert parsed.shape == (2, 3, 4)
+    assert tuple(parsed) == (2, 3, 4)
+    assert len(parsed) == parsed.ndim == 3
+
+    b, *middle, d = parsed
+
+    assert b == 2
+    assert middle == [3]
+    assert d == 4
+
+    # ellipsis dims stay accessible by name
+
+    assert parsed.ellipsis == [3]
+    assert parsed['...'] == [3]
+
+def test_shape_unpacking_ellipsis_spanning_one_or_zero_dims():
+    parsed = shape(torch.randn(5), '...')
+
+    assert tuple(parsed) == (5,)
+    assert len(parsed) == 1
+    assert parsed.ellipsis == [5]
+
+    parsed = shape(torch.tensor(3.), '...')
+
+    assert tuple(parsed) == ()
+    assert len(parsed) == 0
+    assert parsed.ellipsis == []
+
+def test_shape_unpacking_with_selection():
+    parsed = shape(torch.randn(2, 4, 63, 63), 'b h [i j]')
+
+    assert parsed.shape == (63, 63)
+    assert tuple(parsed) == (63, 63)
+    assert len(parsed) == 2
+
+def test_shape_unpacking_is_overridable():
+    parsed = shape(torch.randn(2, 3, 4), 'b ... d')
+
+    # `unpack` backs iteration and length - override it to customize unpacking
+    # e.g. one value per pattern factor, with the ellipsis yielded as a list
+
+    parsed.unpack = lambda: iter([parsed.b, parsed.ellipsis, parsed.d])
+
+    assert tuple(parsed) == (2, [3], 4)
+    assert len(parsed) == 3
+
+    # named access is unaffected
+
+    assert parsed.b == 2 and parsed.d == 4
 
 # equality
 
@@ -557,6 +621,103 @@ def test_shape_arrow_invalid():
     with pytest.raises(AssertionError):
         shape(torch.randn(2, 3), 'b s ->')
 
+# bracket selection
+
+def test_shape_bracket_select():
+    t = torch.randn(2, 4, 63, 63)
+
+    parsed = shape(t, 'b h [i] [j]')
+
+    assert parsed.i == 63
+    assert parsed.j == 63
+    assert parsed.names == ('i', 'j')
+    assert parsed.shape == (63, 63)
+    assert tuple(parsed) == (63, 63)
+    assert parsed == (63, 63)
+    assert parsed.axis('i') == 0
+    assert parsed.axis('j') == 1
+
+    i, j = parsed
+    assert (i, j) == (63, 63)
+
+    with pytest.raises(AttributeError):
+        parsed.b
+
+def test_shape_bracket_select_multiple():
+    t = torch.randn(2, 4, 63, 63)
+
+    i, j = shape(t, 'b h [i j]')
+    assert (i, j) == (63, 63)
+
+    # selection order follows the pattern
+
+    x, y = shape(torch.randn(2, 3, 5, 7), 'b h [x y]')
+    assert (x, y) == (5, 7)
+
+    y, x = shape(torch.randn(2, 3, 5, 7), 'b h [y] [x]')
+    assert (y, x) == (5, 7)
+
+def test_shape_bracket_select_with_ellipsis():
+    t = torch.randn(2, 3, 10, 20, 4, 5)
+
+    parsed = shape(t, 'b [t] ...')
+    assert parsed.t == 3
+    assert tuple(parsed) == (3,)
+    assert parsed.ellipsis == [10, 20, 4, 5]
+
+    n, = shape(t, 'b [n] ... f...2')
+    assert n == 3
+
+def test_shape_bracket_assertions():
+    t = torch.randn(2, 48, 3)
+
+    n, = shape(t, 'b [n] d', n = 48)
+    assert n == 48
+
+    with pytest.raises(ShapeError):
+        shape(t, 'b [n] d', n = 16)
+
+def test_shape_bracket_replace():
+    t = torch.randn(2, 4, 63, 63)
+    parsed = shape(t, 'b h [i] [j]')
+
+    assert parsed.replace(i = 32) == (32, 63)
+
+def test_shape_bracket_is_shape_and_assert_shape():
+    assert is_shape(torch.randn(2, 3, 4), 'b [n] d')
+    assert not is_shape(torch.randn(2, 3), 'b [n] d')
+
+    @assert_shape({'x': 'b [n] d', 'mask': 'b n'})
+    def fn(x, mask = None):
+        return x
+
+    fn(torch.randn(2, 3, 4), mask = torch.randn(2, 3))
+
+    with pytest.raises(ShapeError):
+        fn(torch.randn(2, 3, 4), mask = torch.randn(5, 3))
+
+def test_shape_bracket_does_not_conflict_with_arrow():
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b [n] -> n')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b n -> [n]')
+
+@pytest.mark.parametrize('pattern', [
+    'b [n',
+    'b n]',
+    'b [] d',
+    'b [1] d',
+    'b [_] d',
+    'b [...] d',
+    'b [n n] d',
+    'b ([n] d)',
+    'b [i[j]] d'
+])
+def test_shape_bracket_invalid(pattern):
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3, 4), pattern)
+
 # decorator
 
 def test_assert_shape_string():
@@ -709,6 +870,65 @@ def test_assert_shape_direct_invalid():
 
     with pytest.raises(AssertionError):
         assert_shape((torch.randn(2, 3, 4), 'b s d'), (torch.randn(2, 3), 'b s'))
+
+def test_assert_shape_direct_tensor_pattern():
+    t = torch.randn(2, 3, 4)
+    assert_shape(t, 'b s d')
+    assert_shape(t, 'b s d', d = 4)
+
+    with pytest.raises(ShapeError):
+        assert_shape(torch.randn(2, 3), 'b s d')
+
+    with pytest.raises(AssertionError):
+        assert_shape(t, 'b s d', z = 10)
+
+    with pytest.raises(AssertionError):
+        assert_shape((t, 'b s d'), z = 10)
+
+def test_assert_shape_varargs_called():
+    @assert_shape('b s d')
+    def fn(*args):
+        return args
+
+    fn(torch.randn(2, 3, 4))
+
+    with pytest.raises(ShapeError):
+        fn(torch.randn(2, 3))
+
+    assert fn() == ()
+
+def test_is_shape_non_tensor():
+    assert not is_shape(None, 'b s d')
+    assert not is_shape(3, 'b s d')
+    assert not is_shape('string', 'b s d')
+
+def test_shape_arrow_anonymous_invalid():
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> 1')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> _')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s -> 16')
+
+def test_shape_unmatched_closing_parenthesis():
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3), 'b s)')
+
+def test_shape_invalid_ellipsis_tokens():
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3, 4), 'b foo...bar d')
+
+    with pytest.raises(AssertionError):
+        shape(torch.randn(2, 3, 4), 'b a...b...c d')
+
+def test_shape_replace_slice_length_change_ordering():
+    parsed = shape(torch.randn(2, 3, 4, 5), 'b spatial...2 d')
+
+    assert parsed.replace(spatial = (10, 20, 30), d = 50) == (2, 10, 20, 30, 50)
+    assert parsed.replace(d = 50, spatial = (10, 20, 30)) == (2, 10, 20, 30, 50)
+    assert parsed.replace(spatial = 10) == (2, 10, 5)
 
 def test_torch_compile():
     def compute(x):
