@@ -463,7 +463,10 @@ def pack_with_inverse(t, pattern):
 # gather and scatter
 
 def batched_index_select(values, indices, dim = 1):
+    dim = dim % values.ndim
+
     assert indices.ndim >= dim
+
     device = values.device
     batch_indices = []
 

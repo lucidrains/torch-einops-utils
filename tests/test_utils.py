@@ -558,6 +558,16 @@ def test_batched_index_select():
     assert torch.allclose(out3[0, 1, 0], v[0, 1, i[0, 1, 0]])
     assert torch.allclose(out3[1, 2, 1], v[1, 2, i[1, 2, 1]])
 
+    out3_neg = batched_index_select(v, i, dim=-2)
+    assert torch.allclose(out3, out3_neg)
+
+    v_small = torch.randn(2, 1, 5)
+    i_small = torch.tensor([[1], [3]])
+    out4 = batched_index_select(v_small, i_small, dim=-1)
+    assert out4.shape == (2, 1)
+    assert torch.allclose(out4[0, 0], v_small[0, 0, 1])
+    assert torch.allclose(out4[1, 0], v_small[1, 0, 3])
+
 def test_detach_tensor():
     t = torch.randn(3, requires_grad=True)
     out = detach_tensor(t)
