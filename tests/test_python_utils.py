@@ -81,6 +81,48 @@ def test_maybe_return_multiple_primary():
     out = pad(torch.randn(2, 4), return_all = True)
     assert out.padded.shape == (2, 5) and out.offset == 1
 
+def test_maybe_return_dynamic_primary_arity():
+    @maybe_return('pooled', primary = lambda kw: ('logits', 'memory') if kw.get('return_memory', False) else 'logits')
+    def forward(x, return_memory = False, return_pooled = False):
+        pooled = x.mean(dim = -1) if return_pooled else None
+        memory = ('memory',)
+
+        if return_memory:
+            return x, memory, {'pooled': pooled}
+
+        return x, {'pooled': pooled}
+
+    x = torch.randn(2, 4)
+
+    # primary only by default
+
+    assert torch.equal(forward(x), x)
+
+    logits, memory = forward(x, return_memory = True)
+    assert torch.equal(logits, x) and memory == ('memory',)
+
+    # optional outputs alongside a primary of varying arity
+
+    out = forward(x, return_pooled = True)
+    assert torch.equal(out.logits, x)
+    assert torch.allclose(out.pooled, x.mean(dim = -1))
+
+    out = forward(x, return_memory = True, return_pooled = True)
+    assert torch.equal(out.logits, x) and out.memory == ('memory',)
+    assert torch.allclose(out.pooled, x.mean(dim = -1))
+
+    logits, memory, pooled = forward(x, return_memory = True, return_pooled = True)
+    assert torch.equal(logits, x) and memory == ('memory',)
+    assert torch.allclose(pooled, x.mean(dim = -1))
+
+    # mode flags may also be given positionally
+
+    logits, memory = forward(x, True)
+    assert torch.equal(logits, x) and memory == ('memory',)
+
+    out = forward(x, True, True)
+    assert out.memory == ('memory',) and torch.allclose(out.pooled, x.mean(dim = -1))
+
 def test_maybe_return_advanced():
     # scalar tensor return when not requested
     @maybe_return('loss_breakdown', primary = lambda kw: 'loss' if kw.get('return_loss', True) else 'logits')
