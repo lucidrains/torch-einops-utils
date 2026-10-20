@@ -679,6 +679,32 @@ def test_shape_bracket_select_with_ellipsis():
     n, = shape(t, 'b [n] ... f...2')
     assert n == 3
 
+def test_shape_bracket_select_ellipsis():
+    t = torch.randn(2, 3, 4)
+
+    parsed = shape(t, '[...] a')
+    assert parsed.shape == (2, 3)
+    assert tuple(parsed) == (2, 3)
+    assert parsed.ellipsis == [2, 3]
+
+    parsed = shape(t, '[...b] a')
+    assert parsed.b == [2, 3]
+    assert parsed.shape == (2, 3)
+    assert tuple(parsed) == (2, 3)
+
+    parsed = shape(torch.randn(2, 3, 4, 5), 'b [...] a')
+    assert parsed.shape == (3, 4)
+    assert parsed.ellipsis == [3, 4]
+
+    parsed = shape(t, '[b...2] a')
+    assert parsed.b == [2, 3]
+    assert parsed.shape == (2, 3)
+
+    # arrow form already supports selecting a named ellipsis
+
+    parsed = shape(t, '...b a -> ...')
+    assert parsed.shape == (2, 3)
+
 def test_shape_bracket_assertions():
     t = torch.randn(2, 48, 3)
 
@@ -785,7 +811,7 @@ def test_size():
     'b [] d',
     'b [1] d',
     'b [_] d',
-    'b [...] d',
+    'b [...] ... d',
     'b [n n] d',
     'b ([n] d)',
     'b [i[j]] d'

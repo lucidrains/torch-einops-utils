@@ -46,12 +46,12 @@ def is_anonymous_or_num(name):
 Token = namedtuple('Token', ('kind', 'names', 'length'), defaults = ((), None))
 
 def _num_dims(tok):
-    if tok.kind == 'ellipsis':
+    if tok.kind in ('ellipsis', 'select_ellipsis'):
         return tok.length
     return len(tok.names) if tok.kind in ('name', 'select') else 1
 
 def _is_variable(tok):
-    return tok.kind == 'ellipsis' and not exists(tok.length)
+    return tok.kind in ('ellipsis', 'select_ellipsis') and not exists(tok.length)
 
 # parsing
 
@@ -116,11 +116,15 @@ def _tokenize(pattern):
             assert len(selected) > 0, f'pattern "{pattern}" has an empty bracket'
 
             for name in selected:
-                assert '...' not in name, f'pattern "{pattern}" cannot select an ellipsis'
+                if '...' in name:
+                    ellipsis_token = _ellipsis_token(name, pattern)
+                    tokens.append(Token('select_ellipsis', ellipsis_token.names, ellipsis_token.length))
+                    continue
+
                 validate_name(name, pattern)
                 assert not is_anonymous_or_num(name), f'pattern "{pattern}" can only select named axes, but got "{name}"'
+                tokens.append(Token('select', (name,)))
 
-            tokens.append(Token('select', tuple(selected)))
             i = j + 1
             continue
 
@@ -177,11 +181,18 @@ def parse_pattern(pattern):
     tokens = _tokenize(left)
     names = _collect_names(tokens, pattern)
 
-    selected = [name for tok in tokens if tok.kind == 'select' for name in tok.names]
+    selected = [tok for tok in tokens if tok.kind in ('select', 'select_ellipsis')]
 
     if len(rest) == 0:
-        selection = [Token('name', (name,)) for name in selected] or None
-        res = (tokens, names, selection)
+        selection = []
+
+        for tok in selected:
+            if tok.kind == 'select':
+                selection.extend(Token('name', (name,)) for name in tok.names)
+            else:
+                selection.append(Token('ellipsis', tok.names, tok.length))
+
+        res = (tokens, names, selection or None)
     else:
         assert not selected, f'pattern "{pattern}" cannot combine brackets with "->"'
 
@@ -190,10 +201,10 @@ def parse_pattern(pattern):
 
         selection = []
         seen = set()
-        left_has_ellipsis = any(tok.kind == 'ellipsis' for tok in tokens)
+        left_has_ellipsis = any(tok.kind in ('ellipsis', 'select_ellipsis') for tok in tokens)
 
         for tok in _tokenize(right):
-            if tok.kind in ('group', 'select'):
+            if tok.kind in ('group', 'select', 'select_ellipsis'):
                 raise AssertionError(f'pattern "{pattern}" cannot use groups or brackets after the arrow "->"')
 
             if tok.kind == 'ellipsis':
@@ -239,7 +250,7 @@ def match(tokens, shape, assertions):
     curr = 0
 
     for tok in tokens:
-        if tok.kind == 'ellipsis':
+        if tok.kind in ('ellipsis', 'select_ellipsis'):
             length = default(tok.length, var_len)
 
             dim_val = tuple(shape[curr:curr + length])
@@ -364,7 +375,7 @@ def size(
 
 def _extract_selection(tokens, selection, dims, indices, ellipsis):
     left_ellipsis_name = next(
-        (tok.names[0] for tok in tokens if tok.kind == 'ellipsis' and tok.names),
+        (tok.names[0] for tok in tokens if tok.kind in ('ellipsis', 'select_ellipsis') and tok.names),
         None
     )
 
@@ -375,6 +386,9 @@ def _extract_selection(tokens, selection, dims, indices, ellipsis):
         if tok.kind == 'ellipsis':
             item = ellipsis if exists(ellipsis) else dims[left_ellipsis_name]
             sel_indices['...'] = slice(pos, pos + len(item))
+
+            if tok.names:
+                sel_dims[tok.names[0]] = item
         else:
             name = tok.names[0]
             item = dims[name]
