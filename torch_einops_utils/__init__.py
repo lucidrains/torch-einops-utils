@@ -80,7 +80,8 @@ from torch_einops_utils.nn import (
 )
 
 from torch_einops_utils.device import (
-    tree_map_tensor_to_device
+    tree_map_tensor_to_device,
+    fallback_from
 )
 
 from torch_einops_utils.statistics import (

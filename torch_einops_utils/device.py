@@ -52,3 +52,34 @@ def move_inputs_to_module_device(fn):
         return fn(self, *args, **kwargs)
 
     return inner
+
+# temporary cpu offload for ops without a kernel on some device
+
+def fallback_from(device_type):
+    device_type = getattr(device_type, 'type', device_type)
+
+    def decorator(fn):
+        @wraps(fn)
+        def inner(*args, **kwargs):
+            device = None
+
+            def detect(t):
+                nonlocal device
+
+                if not exists(device) and t.device.type == device_type:
+                    device = t.device
+
+                return t
+
+            tree_map_tensor(detect, (args, kwargs))
+
+            if not exists(device):
+                return fn(*args, **kwargs)
+
+            args, kwargs = tree_map_tensor(lambda t: t.cpu(), (args, kwargs))
+
+            return tree_map_tensor(lambda t: t.to(device), fn(*args, **kwargs))
+
+        return inner
+
+    return decorator

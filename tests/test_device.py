@@ -27,3 +27,21 @@ def test_tree_map_tensor_to_device():
     assert out_tree[0].device == device
     assert out_tree[1][0].device == device
     assert out_tree[1][1]['a'].device == device
+
+def test_fallback_from():
+    from torch_einops_utils.device import fallback_from
+
+    @fallback_from('mps')
+    def fn(t):
+        assert t.device.type == 'cpu'
+        return t * 2
+
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    t = torch.randn(3, device = device, requires_grad = True)
+
+    out = fn(t)
+
+    assert out.device.type == device
+
+    out.sum().backward()
+    assert t.grad is not None
