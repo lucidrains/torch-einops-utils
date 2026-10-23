@@ -99,3 +99,12 @@ from torch_einops_utils.torch_einops_utils import (
 from torch_einops_utils.python_utils import (
     maybe_return
 )
+
+from torch_einops_utils.stable_softmax import (
+    log_softmax,
+    softmax,
+    cross_entropy,
+    soft_target_cross_entropy,
+    categorical_kl,
+    bernoulli_kl
+)
