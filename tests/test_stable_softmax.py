@@ -5,9 +5,11 @@ from torch.distributions import Bernoulli, Categorical, kl_divergence
 
 from torch_einops_utils import (
     bernoulli_kl,
+    binary_cross_entropy_with_logits,
     categorical_kl,
     cross_entropy,
     log_softmax,
+    soft_target_binary_cross_entropy,
     soft_target_cross_entropy,
 )
 
@@ -54,6 +56,101 @@ def test_cross_entropy_all_ignored(reduction):
 
     assert torch.isnan(loss) if reduction == 'mean' else torch.equal(loss, ref)
     assert torch.equal(torch.autograd.grad(loss.sum(), logits)[0], torch.zeros_like(logits))
+
+@param('dtype, logit, expected_loss, rtol', [
+    (torch.float32, 20., 2.0611536922e-09, 1e-5),
+    (torch.bfloat16, 9., 1.2339e-04, 1e-2),
+])
+def test_binary_cross_entropy_survives_precision_cliff(dtype, logit, expected_loss, rtol):
+    logits = torch.tensor([logit, -logit], dtype = dtype, requires_grad = True)
+    target = torch.tensor([1., 0.])
+
+    loss = binary_cross_entropy_with_logits(logits, target, reduction = 'none')
+    grad, = torch.autograd.grad(loss.sum(), logits)
+
+    expected_loss = torch.tensor([expected_loss, expected_loss])
+    expected_grad = expected_loss * torch.tensor([-1., 1.])
+
+    assert torch.allclose(loss.float(), expected_loss, rtol = rtol)
+    assert torch.allclose(grad.float(), expected_grad, rtol = rtol)
+
+    standard_grad, = torch.autograd.grad(
+        F.binary_cross_entropy_with_logits(logits, target, reduction = 'none').sum(),
+        logits
+    )
+
+    assert not torch.allclose(standard_grad.float(), expected_grad, rtol = rtol, atol = 1e-12)
+
+@param('reduction', ['none', 'sum', 'mean'])
+def test_binary_cross_entropy_matches_torch(reduction):
+    torch.manual_seed(0)
+
+    logits = torch.randn(4, 8, requires_grad = True)
+    target = torch.rand(4, 8)
+
+    loss = binary_cross_entropy_with_logits(logits, target, reduction = reduction)
+    ref = F.binary_cross_entropy_with_logits(logits, target, reduction = reduction)
+
+    assert torch.allclose(loss, ref)
+    assert torch.allclose(
+        torch.autograd.grad(loss.sum(), logits)[0],
+        torch.autograd.grad(ref.sum(), logits)[0],
+        atol = 1e-7
+    )
+
+@param('z, target', [
+    ([20., 20.], [1., 0.]),
+    ([-20., -20.], [1., 0.]),
+    ([20., -20.], [1. - 1e-7, 1e-7]),
+])
+def test_binary_cross_entropy_survives_saturation(z, target):
+    logits, target = map(torch.tensor, (z, target))
+    logits.requires_grad_()
+
+    loss = binary_cross_entropy_with_logits(logits, target, reduction = 'none')
+    grad, = torch.autograd.grad(loss.sum(), logits)
+
+    logits64 = logits.detach().double().requires_grad_()
+    loss64 = binary_cross_entropy_with_logits(logits64, target.double(), reduction = 'none')
+    grad64, = torch.autograd.grad(loss64.sum(), logits64)
+
+    assert torch.allclose(loss.double(), loss64, rtol = 1e-5)
+    assert torch.allclose(grad.double(), grad64, rtol = 1e-5)
+
+def test_binary_cross_entropy_handles_inf_logits():
+    logits = torch.tensor([float('inf'), float('-inf')])
+    target = torch.tensor([1., 0.])
+
+    loss = binary_cross_entropy_with_logits(logits, target, reduction = 'none')
+
+    assert torch.equal(loss, torch.zeros(2))
+
+def test_soft_target_binary_cross_entropy_vanishes_at_equality():
+    z_t = torch.tensor([2., 1., 0.])
+    z_s = z_t.clone().requires_grad_()
+
+    loss = soft_target_binary_cross_entropy(z_s, z_t)
+    grad, = torch.autograd.grad(loss.sum(), z_s)
+
+    p = z_t.sigmoid()
+
+    assert torch.allclose(loss, binary_cross_entropy_with_logits(z_s, p, reduction = 'none'))
+    assert torch.allclose(loss, -(p * p.log() + (1. - p) * (1. - p).log()))
+    assert torch.equal(grad, torch.zeros_like(grad))
+
+def test_soft_target_binary_cross_entropy_matches_fp64_near_equality():
+    z_t = torch.tensor([2., 1., 0.])
+    z_s = (z_t + torch.tensor([-1e-7, 1e-7, 0.])).requires_grad_()
+
+    loss = soft_target_binary_cross_entropy(z_s, z_t)
+    grad, = torch.autograd.grad(loss.sum(), z_s)
+
+    z_s64, z_t64 = z_s.detach().double().requires_grad_(), z_t.double()
+    loss64 = soft_target_binary_cross_entropy(z_s64, z_t64)
+    grad64, = torch.autograd.grad(loss64.sum(), z_s64)
+
+    assert torch.allclose(loss.double(), loss64, atol = 1e-12)
+    assert torch.allclose(grad.double(), grad64, rtol = 1e-5, atol = 1e-12)
 
 def test_soft_target_cross_entropy_vanishes_at_equality():
     z_t = torch.tensor([2., 1., 0.])
@@ -160,6 +257,17 @@ def test_reverse_kl_gradient_matches_fp64():
     grad64, = torch.autograd.grad((q64 * (q64.log() - p64.log())).sum(), z_s64)
 
     assert torch.allclose(grad.double(), grad64, rtol = 1e-5, atol = 1e-6)
+
+def test_categorical_kl_handles_mixed_large_and_tiny_logit_differences():
+    z_p = torch.tensor([[0., 0., -37.7]])
+    d = torch.tensor([[0., 0., 20.]])
+    d = d - (z_p.softmax(-1) * d).sum(dim = -1, keepdim = True)
+    z_q = z_p + d
+
+    z_p64, z_q64 = z_p.double(), z_q.double()
+    p64, q64 = z_p64.softmax(-1), z_q64.softmax(-1)
+
+    assert torch.allclose(categorical_kl(z_p, z_q), (p64 * (p64.log() - q64.log())).sum(-1).float(), rtol = 1e-5)
 
 @param('z_p, z_q', [
     ([9., -9., -9.], [9., -9., -9.]),

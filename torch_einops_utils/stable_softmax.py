@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
+from torch.autograd import Function
+
 from einops import rearrange
 
 # helpers
 
 def _one_hot_mask(index, size):
     return torch.arange(size, device = index.device) == index
+
+def _reduce(loss, reduction, denom = None):
+    if reduction == 'none':
+        return loss
+
+    if reduction == 'sum':
+        return loss.sum()
+
+    return loss.mean() if denom is None else loss.sum() / denom
 
 # stable softmax
 
@@ -44,18 +55,18 @@ def _soft_target_terms(z_s, z_t):
     d = z_s - z_t
     d = d - (p * d).sum(dim = -1, keepdim = True)
 
-    # log1p / expm1 for small d (paper eq 9); log-space fallback for large d
+    # expm1 for small d, log-space for large d
 
-    small = d.abs().amax(dim = -1, keepdim = True) < 1.
-    s_small = d - torch.log1p((p * torch.expm1(d.clamp(max = 20.))).sum(dim = -1, keepdim = True))
-    s = torch.where(small, s_small, log_q - log_p)
+    term = torch.where(d > 1., torch.exp(log_p + d) - p, p * torch.expm1(d))
+    sum_expm1 = term.sum(dim = -1, keepdim = True)
+    s = torch.where(torch.isfinite(sum_expm1), d - torch.log1p(sum_expm1), log_q - log_p)
 
     u = torch.where(s.abs() < 1., p * torch.expm1(s), q - p)
     g = u - q * u.sum(dim = -1, keepdim = True)   # zero-sum projection
 
     return log_q, p, s, g
 
-class _SoftTargetCrossEntropy(torch.autograd.Function):
+class _SoftTargetCrossEntropy(Function):
     @staticmethod
     def forward(ctx, z_s, z_t):
         log_q, p, _, g = _soft_target_terms(z_s.detach(), z_t.detach())
@@ -74,7 +85,7 @@ def soft_target_cross_entropy(z_s, z_t):
 
 # kl
 
-class _CategoricalKL(torch.autograd.Function):
+class _CategoricalKL(Function):
     @staticmethod
     def forward(ctx, z_p, z_q):
         need_grad_p, need_grad_q = ctx.needs_input_grad
@@ -120,13 +131,53 @@ def cross_entropy(logits, target, ignore_index = -100, reduction = 'mean', class
     target = torch.where(valid, target, 0)
     loss = torch.where(valid, _cross_entropy(logits, target), 0.)
 
-    if reduction == 'none':
+    return _reduce(loss, reduction, valid.sum())
+
+# binary cross entropy
+
+def binary_cross_entropy_with_logits(logits, target, reduction = 'mean'):
+    target = target.to(logits.dtype)
+
+    # branch hard targets to avoid 0 * inf -> nan
+
+    loss_pos = F.softplus(-logits)
+    loss_neg = F.softplus(logits)
+
+    loss = torch.where(
+        target == 1,
+        loss_pos,
+        torch.where(target == 0, loss_neg, target * loss_pos + (1. - target) * loss_neg)
+    )
+
+    return _reduce(loss, reduction)
+
+class _SoftTargetBinaryCrossEntropy(Function):
+    @staticmethod
+    def forward(ctx, z_s, z_t):
+        p_pos = z_t.sigmoid()
+        p_neg = (-z_t).sigmoid()
+
+        loss = p_pos * F.softplus(-z_s) + p_neg * F.softplus(z_s)
+
+        # sigmoid(z_s) - sigmoid(z_t), via expm1(-|delta|)
+
+        delta = z_s - z_t
+        g = torch.where(
+            delta <= 0,
+            (-z_s).sigmoid() * p_pos * torch.expm1(delta),
+            -z_s.sigmoid() * p_neg * torch.expm1(-delta)
+        )
+
+        ctx.save_for_backward(g)
         return loss
 
-    if reduction == 'sum':
-        return loss.sum()
+    @staticmethod
+    def backward(ctx, grad_output):
+        g, = ctx.saved_tensors
+        return grad_output * g, None
 
-    return loss.sum() / valid.sum()
+def soft_target_binary_cross_entropy(z_s, z_t, reduction = 'none'):
+    return _reduce(_SoftTargetBinaryCrossEntropy.apply(z_s, z_t), reduction)
 
 # Barron, Gnanapragasam & Tschannen. A Fix for Softmax and Cross-Entropy. 2026.
 # https://jonbarron.info/softmaxfix/

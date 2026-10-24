@@ -105,6 +105,8 @@ from torch_einops_utils.stable_softmax import (
     softmax,
     cross_entropy,
     soft_target_cross_entropy,
+    binary_cross_entropy_with_logits,
+    soft_target_binary_cross_entropy,
     categorical_kl,
     bernoulli_kl
 )
