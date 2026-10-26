@@ -100,6 +100,10 @@ from torch_einops_utils.python_utils import (
     maybe_return
 )
 
+from torch_einops_utils.math import (
+    slerp
+)
+
 from torch_einops_utils.stable_softmax import (
     log_softmax,
     softmax,
