@@ -11,6 +11,7 @@ from torch_einops_utils import (
     log_softmax,
     soft_target_binary_cross_entropy,
     soft_target_cross_entropy,
+    soft_target_cross_entropy_from_logits,
 )
 
 param = pytest.mark.parametrize
@@ -152,11 +153,11 @@ def test_soft_target_binary_cross_entropy_matches_fp64_near_equality():
     assert torch.allclose(loss.double(), loss64, atol = 1e-12)
     assert torch.allclose(grad.double(), grad64, rtol = 1e-5, atol = 1e-12)
 
-def test_soft_target_cross_entropy_vanishes_at_equality():
+def test_soft_target_cross_entropy_from_logits_vanishes_at_equality():
     z_t = torch.tensor([2., 1., 0.])
     z_s = z_t.clone().requires_grad_()
 
-    loss = soft_target_cross_entropy(z_s, z_t)
+    loss = soft_target_cross_entropy_from_logits(z_s, z_t)
     grad, = torch.autograd.grad(loss, z_s)
 
     p = z_t.softmax(-1)
@@ -164,11 +165,11 @@ def test_soft_target_cross_entropy_vanishes_at_equality():
     assert torch.allclose(loss, -(p * p.log()).sum())
     assert torch.equal(grad, torch.zeros_like(grad))
 
-def test_soft_target_cross_entropy_matches_fp64_near_equality():
+def test_soft_target_cross_entropy_from_logits_matches_fp64_near_equality():
     z_t = torch.tensor([2., 1., 0.])
     z_s = (z_t + torch.tensor([-1e-7, 1e-7, 0.])).requires_grad_()
 
-    loss = soft_target_cross_entropy(z_s, z_t)
+    loss = soft_target_cross_entropy_from_logits(z_s, z_t)
     grad, = torch.autograd.grad(loss, z_s)
 
     z_s64 = z_s.detach().double().requires_grad_()
@@ -179,6 +180,55 @@ def test_soft_target_cross_entropy_matches_fp64_near_equality():
 
     assert torch.allclose(grad.double(), grad64, rtol = 1e-5, atol = 1e-12)
     assert torch.allclose(grad, expected, atol = 1e-12)
+
+@param('reduction', ['none', 'sum', 'mean'])
+def test_soft_target_cross_entropy_matches_logits(reduction):
+    torch.manual_seed(0)
+
+    target_logits = torch.randn(4, 8, 5)
+    target_probs = target_logits.softmax(dim = -1)
+    logits = torch.randn(4, 8, 5, requires_grad = True)
+
+    loss = soft_target_cross_entropy(logits, target_probs, reduction = reduction)
+    ref = soft_target_cross_entropy_from_logits(logits, target_logits, reduction = reduction)
+
+    assert torch.allclose(loss, ref)
+
+@param('reduction', ['none', 'sum', 'mean'])
+def test_soft_target_cross_entropy_broadcasts_heads_and_masks(reduction):
+    torch.manual_seed(0)
+
+    logits = torch.randn(2, 4, 3, 5, requires_grad = True)
+    target_probs = torch.randn(2, 3, 5).softmax(dim = -1)
+    mask = torch.tensor([[True, True, True], [True, False, False]])
+
+    loss = soft_target_cross_entropy(logits, target_probs, mask = mask, reduction = reduction)
+
+    ref = soft_target_cross_entropy_from_logits(
+        logits,
+        target_probs.log()[:, None].expand_as(logits),
+        mask = mask,
+        reduction = reduction
+    )
+
+    assert torch.allclose(loss, ref)
+    assert torch.isfinite(loss).all()
+
+    if reduction != 'none':
+        loss.backward()
+        assert torch.isfinite(logits.grad).all()
+
+def test_soft_target_cross_entropy_handles_empty_targets():
+    logits = torch.randn(1, 2, 5, requires_grad = True)
+    target_probs = torch.zeros(1, 2, 5)
+    target_probs[0, 0, 0] = 1.
+
+    loss = soft_target_cross_entropy(logits, target_probs, reduction = 'mean')
+
+    assert torch.isfinite(loss)
+
+    loss.backward()
+    assert torch.isfinite(logits.grad).all()
 
 def test_categorical_kl_matches_fp64_near_equality():
     z_p = torch.tensor([2., 1., 0.], requires_grad = True)
@@ -282,7 +332,7 @@ def test_kl_and_soft_target_cross_entropy_survive_saturation(z_p, z_q):
     z_q.requires_grad_()
 
     kl = categorical_kl(z_p, z_q)
-    ce = soft_target_cross_entropy(z_q, z_p)
+    ce = soft_target_cross_entropy_from_logits(z_q, z_p)
 
     kl_grad, = torch.autograd.grad(kl.sum(), z_q)
     ce_grad, = torch.autograd.grad(ce.sum(), z_q)

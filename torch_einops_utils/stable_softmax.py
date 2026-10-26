@@ -6,6 +6,8 @@ from torch.autograd import Function
 
 from einops import rearrange
 
+from torch_einops_utils.torch_einops_utils import exists
+
 # helpers
 
 def _one_hot_mask(index, size):
@@ -18,7 +20,35 @@ def _reduce(loss, reduction, denom = None):
     if reduction == 'sum':
         return loss.sum()
 
-    return loss.mean() if denom is None else loss.sum() / denom
+    return loss.mean() if not exists(denom) else loss.sum() / denom
+
+def _masked_reduce(loss, mask = None, reduction = 'none'):
+    assert reduction in {'none', 'sum', 'mean'}
+
+    if not exists(mask):
+        if reduction == 'none':
+            return loss
+
+        if reduction == 'sum':
+            return loss.sum()
+
+        return loss.mean()
+
+    mask = mask.bool()
+
+    if mask.ndim == loss.ndim - 1:
+        mask = mask.unsqueeze(1)
+
+    mask = mask.expand_as(loss)
+    loss = loss * mask
+
+    if reduction == 'none':
+        return loss
+
+    if reduction == 'sum':
+        return loss.sum()
+
+    return loss.sum() / mask.sum().clamp(min = 1)
 
 # stable softmax
 
@@ -80,8 +110,33 @@ class _SoftTargetCrossEntropy(Function):
 
         return rearrange(grad_output, '... -> ... 1') * g, None
 
-def soft_target_cross_entropy(z_s, z_t):
-    return _SoftTargetCrossEntropy.apply(z_s, z_t)
+def soft_target_cross_entropy_from_logits(z_s, z_t, mask = None, reduction = 'none'):
+    if z_t.ndim == z_s.ndim - 1:
+        z_t = z_t.unsqueeze(1)
+
+    z_t = z_t.expand_as(z_s)
+    loss = _SoftTargetCrossEntropy.apply(z_s, z_t)
+
+    return _masked_reduce(loss, mask, reduction)
+
+def soft_target_cross_entropy(z_s, target_probs, mask = None, reduction = 'none'):
+    target_logits = torch.where(
+        target_probs > 0,
+        target_probs.log(),
+        -torch.inf
+    )
+
+    target_sum = target_probs.sum(dim = -1)
+    valid = target_sum > 0 if not exists(mask) else mask.bool() & (target_sum > 0)
+
+    target_logits = target_logits.masked_fill(~valid[..., None], 0.)
+
+    return soft_target_cross_entropy_from_logits(
+        z_s,
+        target_logits,
+        mask = valid,
+        reduction = reduction
+    )
 
 # kl
 
@@ -105,8 +160,8 @@ class _CategoricalKL(Function):
         grad_output = rearrange(grad_output, '... -> ... 1')
 
         return (
-            grad_output * grad_p if grad_p is not None else None,
-            grad_output * grad_q if grad_q is not None else None
+            grad_output * grad_p if exists(grad_p) else None,
+            grad_output * grad_q if exists(grad_q) else None
         )
 
 def categorical_kl(z_p, z_q):
