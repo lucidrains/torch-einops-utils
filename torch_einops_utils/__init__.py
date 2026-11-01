@@ -104,6 +104,13 @@ from torch_einops_utils.math import (
     slerp
 )
 
+from torch_einops_utils.grad import (
+    straight_through,
+    zero_with_grad,
+    Frozen,
+    frozen_grad
+)
+
 from torch_einops_utils.stable_softmax import (
     log_softmax,
     softmax,
