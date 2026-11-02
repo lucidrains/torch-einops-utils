@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
@@ -229,3 +230,80 @@ def per_sample_grad(
     dim: int = 0
 ):
     return PerSampleGrad(module, callback, dim = dim)
+
+# named grads -> reconcile -> set grads
+
+def named_grads(module: Module, *, remove_none = True):
+    grads = {name: param.grad for name, param in module.named_parameters()}
+
+    if not remove_none:
+        return grads
+
+    return {name: grad for name, grad in grads.items() if exists(grad)}
+
+def named_grads_from_loss(
+    loss: Tensor,
+    module: Module,
+    *,
+    retain_graph = False,
+    create_graph = False,
+    allow_unused = True
+):
+    params = {name: param for name, param in module.named_parameters() if param.requires_grad}
+
+    if not params:
+        return {}
+
+    grads = torch.autograd.grad(
+        loss,
+        tuple(params.values()),
+        retain_graph = retain_graph,
+        create_graph = create_graph,
+        allow_unused = allow_unused
+    )
+
+    return {name: grad for name, grad in zip(params, grads) if exists(grad)}
+
+def set_named_grads(module: Module, grads: dict[str, Tensor]):
+    for name, param in module.named_parameters():
+        param.grad = grads.get(name)
+
+# scope requires_grad by name
+# wrap forward + backward, requires_grad is read when the graph is built
+# freezing weights does not stop grads to earlier layers -> detach for that
+# does not clear .grad -> call optimizer.zero_grad() first
+
+@contextmanager
+def grad_scope(
+    module: Module,
+    *,
+    disable = (),
+    enable = (),
+    hard_set: dict | None = None,
+    strict = True
+):
+    params = dict(module.named_parameters())
+    original = {name: param.requires_grad for name, param in params.items()}
+
+    def set_grad(names, value):
+        names = (names,) if isinstance(names, str) else names
+
+        for name in names:
+            if name not in params:
+                if strict:
+                    raise KeyError(name)
+                continue
+
+            params[name].requires_grad_(bool(value))
+
+    try:
+        set_grad(disable, False)
+        set_grad(enable, True)
+
+        for names, value in default(hard_set, {}).items():
+            set_grad(names, value)
+
+        yield
+    finally:
+        for name, value in original.items():
+            params[name].requires_grad_(value)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
-
 from einops import rearrange
 
 from torch_einops_utils.torch_einops_utils import default
@@ -11,6 +10,23 @@ from torch_einops_utils.torch_einops_utils import default
 
 def l2norm(t):
     return F.normalize(t, dim = -1)
+
+# projections of v onto u
+# v = parallel + orthogonal
+
+def parallel_component(v, u, dim = -1, eps = None):
+    eps = default(eps, torch.finfo(u.dtype).tiny)
+    v, u = v.movedim(dim, -1), u.movedim(dim, -1)
+    denom = (u * u).sum(dim = -1, keepdim = True).clamp_min(eps)
+    coeff = (v * u).sum(dim = -1, keepdim = True) / denom
+    return (coeff * u).movedim(-1, dim)
+
+def orthogonal_component(v, u, dim = -1, eps = None):
+    return v - parallel_component(v, u, dim = dim, eps = eps)
+
+def components(v, u, dim = -1, eps = None):
+    parallel = parallel_component(v, u, dim = dim, eps = eps)
+    return parallel, v - parallel
 
 # spherical linear interpolation
 

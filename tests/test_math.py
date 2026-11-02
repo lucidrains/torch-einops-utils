@@ -2,9 +2,105 @@ import pytest
 import torch
 from torch.nn.functional import normalize
 
-from torch_einops_utils import slerp
+from torch_einops_utils import (
+    components,
+    orthogonal_component,
+    parallel_component,
+    slerp,
+)
 
 param = pytest.mark.parametrize
+
+def test_vector_components():
+    v = torch.tensor([3., 4.])
+    u = torch.tensor([1., 0.])
+
+    parallel = parallel_component(v, u)
+    orthogonal = orthogonal_component(v, u)
+
+    assert torch.allclose(parallel, torch.tensor([3., 0.]))
+    assert torch.allclose(orthogonal, torch.tensor([0., 4.]))
+
+    parallel, orthogonal = components(v, u)
+
+    assert torch.allclose(parallel + orthogonal, v)
+    assert torch.allclose((parallel * orthogonal).sum(), torch.tensor(0.))
+
+def test_vector_components_parallel():
+    v = torch.tensor([2., 4.])
+    u = torch.tensor([1., 2.])
+
+    parallel, orthogonal = components(v, u)
+
+    assert torch.allclose(parallel, v)
+    assert torch.allclose(orthogonal, torch.zeros_like(v))
+
+def test_vector_components_orthogonal():
+    v = torch.tensor([0., 1.])
+    u = torch.tensor([1., 0.])
+
+    parallel, orthogonal = components(v, u)
+
+    assert torch.allclose(parallel, torch.zeros_like(v))
+    assert torch.allclose(orthogonal, v)
+
+def test_vector_components_batch():
+    torch.manual_seed(0)
+
+    v = torch.randn(4, 5, 3)
+    u = torch.randn(4, 5, 3)
+
+    parallel, orthogonal = components(v, u)
+
+    assert torch.allclose(parallel + orthogonal, v)
+    assert torch.allclose((parallel * orthogonal).sum(dim = -1), torch.zeros(4, 5), atol = 1e-6)
+
+def test_vector_components_dim():
+    torch.manual_seed(0)
+
+    v = torch.randn(3, 4)
+    u = torch.randn(3)
+
+    parallel, orthogonal = components(v, u, dim = 0)
+
+    assert parallel.shape == v.shape
+    assert torch.allclose(parallel + orthogonal, v)
+    assert torch.allclose((parallel * orthogonal).sum(dim = 0), torch.zeros(4), atol = 1e-6)
+
+def test_vector_components_zero_u():
+    v = torch.tensor([1., 2., 3.])
+
+    parallel, orthogonal = components(v, torch.zeros(3))
+
+    assert torch.equal(parallel, torch.zeros_like(v))
+    assert torch.equal(orthogonal, v)
+
+@param('dtype', [torch.float16, torch.bfloat16, torch.float32, torch.float64])
+def test_vector_components_dtypes(dtype):
+    torch.manual_seed(0)
+
+    v = torch.randn(5, dtype = dtype)
+    u = torch.randn(5, dtype = dtype)
+
+    parallel, orthogonal = components(v, u)
+
+    assert parallel.dtype == dtype
+    assert orthogonal.dtype == dtype
+    assert torch.isfinite(parallel).all()
+    assert torch.isfinite(orthogonal).all()
+
+def test_vector_components_gradients():
+    torch.manual_seed(0)
+
+    v = torch.randn(3, 4, requires_grad = True)
+    u = torch.randn(3, 4, requires_grad = True)
+
+    parallel, orthogonal = components(v, u)
+
+    (parallel.square().sum() + orthogonal.square().sum()).backward()
+
+    assert torch.isfinite(v.grad).all()
+    assert torch.isfinite(u.grad).all()
 
 def test_slerp():
     v0 = torch.tensor([1., 0.])

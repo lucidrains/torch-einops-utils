@@ -1,5 +1,6 @@
 from __future__ import annotations
 from functools import wraps
+from operator import add, mul
 
 import torch
 from torch import tensor, is_tensor, cat, stack, arange
@@ -575,3 +576,42 @@ def clamp(
     t = max(t, lo) if exists(lo) else t
     t = min(t, hi) if exists(hi) else t
     return t
+
+# dict ops
+# keys = 'union' -> carry one sided keys
+# keys = 'intersection' -> only common keys
+# keys = 'strict' -> require identical key sets
+# fn only runs when both values exist
+
+def dict_combine(a, b, fn, *, keys = 'union'):
+    if keys == 'strict':
+        if set(a) != set(b):
+            raise KeyError(f'keys do not match: {set(a) ^ set(b)}')
+
+        key_iter = a
+    elif keys == 'union':
+        key_iter = dict.fromkeys((*a, *b))
+    elif keys == 'intersection':
+        key_iter = (key for key in a if key in b)
+    else:
+        raise ValueError(f'unknown keys mode {keys}')
+
+    out = {}
+
+    for key in key_iter:
+        x, y = a.get(key), b.get(key)
+
+        if exists(x) and exists(y):
+            out[key] = fn(x, y)
+        elif exists(x):
+            out[key] = x
+        elif exists(y):
+            out[key] = y
+
+    return out
+
+def dict_add(a, b, *, keys = 'union'):
+    return dict_combine(a, b, add, keys = keys)
+
+def dict_mul(a, b, *, keys = 'union'):
+    return dict_combine(a, b, mul, keys = keys)

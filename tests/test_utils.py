@@ -36,6 +36,9 @@ from torch_einops_utils.torch_einops_utils import (
     slice_right_at_dim,
     safe_stack,
     safe_cat,
+    dict_combine,
+    dict_add,
+    dict_mul,
     mask_after,
     mask_before,
     shift_right,
@@ -698,3 +701,56 @@ def test_entropy():
     ent_loss = entropy(prob_grad)
     ent_loss.backward()
     assert prob_grad.grad is not None
+
+def test_dict_combine():
+    a = {'a': 1, 'b': 2, 'c': None}
+    b = {'b': 3, 'c': 4, 'd': 5}
+
+    out = dict_combine(a, b, lambda x, y: x * y)
+
+    assert out == {'a': 1, 'b': 6, 'c': 4, 'd': 5}
+
+def test_dict_combine_keys_modes():
+    a = {'a': 1, 'b': 2}
+    b = {'b': 3, 'c': 4}
+
+    assert dict_combine(a, b, lambda x, y: x + y, keys = 'intersection') == {'b': 5}
+    assert dict_add(a, b, keys = 'intersection') == {'b': 5}
+    assert dict_mul(a, b, keys = 'intersection') == {'b': 6}
+
+    with pytest.raises(KeyError):
+        dict_combine(a, b, lambda x, y: x + y, keys = 'strict')
+
+    same_a = {'a': 1, 'b': 2}
+    same_b = {'a': 3, 'b': 4}
+
+    assert dict_combine(same_a, same_b, lambda x, y: x + y, keys = 'strict') == {'a': 4, 'b': 6}
+
+    with pytest.raises(ValueError):
+        dict_combine(a, b, lambda x, y: x + y, keys = 'nope')
+
+def test_dict_add():
+    a = {'a': tensor([1.]), 'b': tensor([2.]), 'c': None}
+    b = {'b': tensor([3.]), 'c': tensor([4.]), 'd': None}
+
+    out = dict_add(a, b)
+
+    assert set(out) == {'a', 'b', 'c'}
+    assert torch.equal(out['a'], tensor([1.]))
+    assert torch.equal(out['b'], tensor([5.]))
+    assert torch.equal(out['c'], tensor([4.]))
+
+    assert dict_add({'a': 1}, {'a': 2, 'b': 3}) == {'a': 3, 'b': 3}
+
+def test_dict_mul():
+    a = {'a': tensor([2.]), 'b': None, 'c': tensor([3.])}
+    b = {'b': tensor([4.]), 'c': None, 'd': None}
+
+    out = dict_mul(a, b)
+
+    assert set(out) == {'a', 'b', 'c'}
+    assert torch.equal(out['a'], tensor([2.]))
+    assert torch.equal(out['b'], tensor([4.]))
+    assert torch.equal(out['c'], tensor([3.]))
+
+    assert dict_mul({'a': 2}, {'a': 3, 'b': 4}) == {'a': 6, 'b': 4}
