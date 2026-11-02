@@ -55,3 +55,27 @@ loss, loss_mask = model(ids, return_loss = True)
 loss = model(ids, return_loss = True, reduce_loss = True)
 loss, pooled = model(ids, return_loss = True, reduce_loss = True, return_pooled_repr = True)
 ```
+
+## log_table
+
+clean, aligned logging for a single record or a list of records
+
+```python
+from torch_einops_utils import log_table
+
+log_table(ep = 200, reward = 187.04, steps = 1000, avg100 = 66.03)
+# ep 200  reward 187.04  steps 1000  avg100 66.03
+
+log_table([
+    dict(ep = 200, reward = 187.04, avg100 = 66.03),
+    dict(ep = 225, reward = 76.72, avg100 = 89.98),
+], formatters = dict(reward = '.2f', avg100 = '.2f'))
+```
+
+```text
+ep   reward  avg100
+200  187.04   66.03
+225   76.72   89.98
+```
+
+`formatters` takes a format spec or a callable per column, and `format_table` returns the string without printing

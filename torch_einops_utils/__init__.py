@@ -103,6 +103,11 @@ from torch_einops_utils.python_utils import (
     maybe_return
 )
 
+from torch_einops_utils.table import (
+    format_table,
+    log_table
+)
+
 from torch_einops_utils.math import (
     slerp,
     parallel_component,
