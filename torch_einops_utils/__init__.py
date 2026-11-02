@@ -107,8 +107,13 @@ from torch_einops_utils.math import (
 from torch_einops_utils.grad import (
     straight_through,
     zero_with_grad,
+    mask_grad,
     Frozen,
-    frozen_grad
+    frozen_grad,
+    GradContext,
+    PerSampleGrad,
+    per_sample_grad,
+    sum_per_sample_grads
 )
 
 from torch_einops_utils.stable_softmax import (
