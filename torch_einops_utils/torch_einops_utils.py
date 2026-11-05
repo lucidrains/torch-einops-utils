@@ -146,13 +146,16 @@ def masked_sum(
 ):
     return masked_reduce(t, mode = 'sum', mask = mask, dim = dim, keepdim = keepdim)
 
-# cumsum
+# cumsum and cumprod
 
 def exclusive_cumsum(t, dim = -1):
     return t.cumsum(dim = dim) - t
 
 def reverse_cumsum(t, dim = -1):
     return t.sum(dim = dim, keepdim = True) - t.cumsum(dim = dim) + t
+
+def exclusive_cumprod(t, dim = -1):
+    return shift_right(t, amount = 1, dim = dim, pad_value = 1.).cumprod(dim = dim)
 
 # shapes
 

@@ -31,6 +31,7 @@ from torch_einops_utils.torch_einops_utils import (
     masked_mean,
     masked_sum,
     exclusive_cumsum,
+    exclusive_cumprod,
     slice_at_dim,
     slice_left_at_dim,
     slice_right_at_dim,
@@ -414,6 +415,14 @@ def test_exclusive_cumsum():
     t = tensor([[1., 2.], [3., 4.]])
     assert torch.allclose(exclusive_cumsum(t, dim = 0), tensor([[0., 0.], [1., 2.]]))
     assert torch.allclose(exclusive_cumsum(t, dim = 1), tensor([[0., 1.], [0., 3.]]))
+
+def test_exclusive_cumprod():
+    t = tensor([2., 3., 4., 5.])
+    assert torch.allclose(exclusive_cumprod(t), tensor([1., 2., 6., 24.]))
+
+    t = tensor([[2., 3.], [4., 5.]])
+    assert torch.allclose(exclusive_cumprod(t, dim = 0), tensor([[1., 1.], [2., 3.]]))
+    assert torch.allclose(exclusive_cumprod(t, dim = 1), tensor([[1., 2.], [1., 4.]]))
 
 def test_slice_at_dim():
     t = torch.randn(3, 4, 5)

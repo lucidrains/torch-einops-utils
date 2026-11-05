@@ -38,7 +38,8 @@ from torch_einops_utils.torch_einops_utils import (
 
 from torch_einops_utils.torch_einops_utils import (
     exclusive_cumsum,
-    reverse_cumsum
+    reverse_cumsum,
+    exclusive_cumprod
 )
 
 from torch_einops_utils.torch_einops_utils import (
