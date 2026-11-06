@@ -18,6 +18,7 @@ from torch_einops_utils.torch_einops_utils import (
     pad_right_at_dim,
     pad_left_at_dim_to,
     pad_right_at_dim_to,
+    pad_or_truncate_at_dim,
     pad_at_dim_to_multiple,
     pad_sequence,
     pad_sequence_and_cat,
@@ -106,6 +107,24 @@ def test_pad_at_dim():
 
     padded = pad_right_at_dim_to(t, 6, dim = 1)
     assert padded.shape == (3, 6, 1)
+
+def test_pad_or_truncate_at_dim():
+    t = torch.randn(3, 4, 5)
+
+    padded = pad_or_truncate_at_dim(t, 6, dim = 1)
+    assert padded.shape == (3, 6, 5)
+    assert torch.equal(padded[:, :4], t)
+    assert torch.all(padded[:, 4:] == 0.)
+
+    padded = pad_or_truncate_at_dim(t, 6, dim = 1, value = 1.)
+    assert torch.all(padded[:, 4:] == 1.)
+
+    truncated = pad_or_truncate_at_dim(t, 2, dim = -2)
+    assert truncated.shape == (3, 2, 5)
+    assert torch.equal(truncated, t[:, :2])
+
+    same = pad_or_truncate_at_dim(t, 4, dim = 1)
+    assert same is t
 
 def test_pad_at_dim_to_multiple():
     t = torch.randn(3, 5, 2)

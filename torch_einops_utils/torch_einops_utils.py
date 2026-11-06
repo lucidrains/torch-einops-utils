@@ -325,6 +325,19 @@ def pad_right_at_dim_to(t, length: int, dim = -1, **kwargs):
 
     return pad_right_at_dim(t, length - curr_len, dim = dim, **kwargs)
 
+def pad_or_truncate_at_dim(t, length: int, dim = -1, value = 0.):
+    assert length >= 0, f'length must be non-negative, got {length}'
+
+    curr_len = t.shape[dim]
+
+    if curr_len == length:
+        return t
+
+    if curr_len < length:
+        return pad_right_at_dim(t, length - curr_len, dim = dim, value = value)
+
+    return slice_at_dim(t, slice(0, length), dim = dim)
+
 @maybe_return('pad_len', 'mask', 'did_pad', primary = ('padded', 'inverse'))
 def pad_at_dim_to_multiple(
     t,
