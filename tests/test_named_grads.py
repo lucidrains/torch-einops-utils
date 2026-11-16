@@ -222,5 +222,46 @@ def test_grad_scope_nested():
 def test_grad_scope_unknown_name():
     model = nn.Linear(2, 1)
 
-    with pytest.raises(KeyError), grad_scope(model, disable = ['nope']):
+    with pytest.raises(ValueError), grad_scope(model, disable = ['nope']):
         pass
+
+def test_grad_scope_selectors():
+    model = nn.Sequential(nn.Linear(2, 4), nn.LayerNorm(4), nn.Linear(4, 1))
+
+    with grad_scope(model, disable = '0.*'):
+        assert not any(p.requires_grad for p in model[0].parameters())
+        assert all(p.requires_grad for p in model[2].parameters())
+
+    assert all(p.requires_grad for p in model[0].parameters())
+
+    with grad_scope(model, disable = nn.LayerNorm):
+        assert not any(p.requires_grad for p in model[1].parameters())
+        assert all(p.requires_grad for p in model[0].parameters())
+
+    assert all(p.requires_grad for p in model[1].parameters())
+
+    with grad_scope(model, hard_set = {'2.*': False}):
+        assert not any(p.requires_grad for p in model[2].parameters())
+        assert all(p.requires_grad for p in model[0].parameters())
+
+    assert all(p.requires_grad for p in model[2].parameters())
+
+def test_named_grads_selectors():
+    torch.manual_seed(0)
+
+    model = TwoHead()
+    x = torch.randn(3, 3)
+
+    out_a, _ = model(x)
+    out_a.sum().backward()
+
+    assert set(named_grads(model, 'head_a.*')) == {'head_a.weight', 'head_a.bias'}
+    assert set(named_grads(model, model.head_a)) == {'head_a.weight', 'head_a.bias'}
+
+    out_a, _ = model(x)
+    grads = named_grads_from_loss(out_a.sum(), model, 'head_a.*')
+    assert set(grads) == {'head_a.weight', 'head_a.bias'}
+
+    out_a, _ = model(x)
+    grads = named_grads_from_loss(out_a.sum(), model, nn.Linear)
+    assert set(grads) == {'trunk.weight', 'trunk.bias', 'head_a.weight', 'head_a.bias'}

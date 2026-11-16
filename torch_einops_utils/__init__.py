@@ -84,6 +84,19 @@ from torch_einops_utils.nn import (
     temp_eval
 )
 
+from torch_einops_utils.freeze import (
+    freeze,
+    unfreeze,
+    freeze_except,
+    trainable_parameters,
+    frozen
+)
+
+from torch_einops_utils.selectors import (
+    resolve_modules,
+    resolve_parameters
+)
+
 from torch_einops_utils.device import (
     tree_map_tensor_to_device,
     fallback_from
