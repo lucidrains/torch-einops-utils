@@ -157,3 +157,8 @@ from torch_einops_utils.stable_softmax import (
     categorical_kl,
     bernoulli_kl
 )
+
+from torch_einops_utils.sampling import (
+    uniform,
+    uniform_like
+)
