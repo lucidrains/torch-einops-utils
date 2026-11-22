@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from itertools import chain
 from functools import wraps
 
 import torch
+from torch import Tensor
 from torch.nn import Module
 
 from torch_einops_utils.torch_einops_utils import tree_map_tensor
@@ -11,16 +14,27 @@ from torch_einops_utils.torch_einops_utils import tree_map_tensor
 def exists(v):
     return v is not None
 
-# infer the device for a module
+def default(v, d):
+    return v if exists(v) else d
+
+# infer device and dtype from a tensor or module
+
+def first_param_or_buffer(m: Module):
+    return next(chain(m.parameters(), m.buffers()), None)
 
 def module_device(m: Module):
+    t = first_param_or_buffer(m)
+    return t.device if exists(t) else None
 
-    first_param_or_buffer = next(chain(m.parameters(), m.buffers()), None)
+def device_dtype(t: Tensor | Module, *, device = None, dtype = None):
+    if isinstance(t, Module):
+        t = first_param_or_buffer(t)
+        assert exists(t), 'module has no parameters or buffers'
 
-    if not exists(first_param_or_buffer):
-        return None
-
-    return first_param_or_buffer.device
+    return dict(
+        device = default(device, t.device),
+        dtype = default(dtype, t.dtype)
+    )
 
 def tree_map_tensor_to_device(tree, device):
     return tree_map_tensor(lambda t: t.to(device), tree)

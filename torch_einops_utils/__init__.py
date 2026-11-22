@@ -98,6 +98,7 @@ from torch_einops_utils.selectors import (
 )
 
 from torch_einops_utils.device import (
+    device_dtype,
     tree_map_tensor_to_device,
     fallback_from
 )

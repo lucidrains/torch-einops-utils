@@ -45,3 +45,16 @@ def test_fallback_from():
 
     out.sum().backward()
     assert t.grad is not None
+
+def test_device_dtype():
+    from torch_einops_utils import device_dtype as dd
+
+    t = torch.randn(3, dtype = torch.float64)
+    assert dd(t) == dict(device = torch.device('cpu'), dtype = torch.float64)
+    assert dd(t, dtype = torch.float32) == dict(device = torch.device('cpu'), dtype = torch.float32)
+
+    out = torch.zeros(4, **dd(t))
+    assert out.device == t.device and out.dtype == t.dtype
+
+    linear = nn.Linear(3, 3, dtype = torch.float16)
+    assert dd(linear) == dict(device = torch.device('cpu'), dtype = torch.float16)
