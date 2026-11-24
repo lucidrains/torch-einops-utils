@@ -147,7 +147,7 @@ from torch_einops_utils.grad import (
     grad_scope
 )
 
-from torch_einops_utils.stable_softmax import (
+from torch_einops_utils.stable import (
     log_softmax,
     softmax,
     cross_entropy,
@@ -156,7 +156,8 @@ from torch_einops_utils.stable_softmax import (
     binary_cross_entropy_with_logits,
     soft_target_binary_cross_entropy,
     categorical_kl,
-    bernoulli_kl
+    bernoulli_kl,
+    kl_divergence
 )
 
 from torch_einops_utils.sampling import (
